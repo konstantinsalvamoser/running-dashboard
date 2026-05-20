@@ -1444,7 +1444,7 @@ async function openRunDetail(run) {
   const hrMax = act.max_heartrate ? Math.round(act.max_heartrate) : '—';
   const cadence = act.average_cadence ? Math.round(act.average_cadence * 2) : '—';
   const calories = act.calories ? Math.round(act.calories) : '—';
-  const movingTime = fmtTime(act.moving_time);
+  const movingTime = fmtDuration(act.moving_time);
   const date = act.start_date_local ? act.start_date_local.split('T')[0] : run.date;
 
   // Build splits
