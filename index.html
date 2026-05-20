@@ -1056,10 +1056,11 @@ document.getElementById('saveRun').addEventListener('click', () => {
   }
   const timeSec = parseTime(timeStr);
   if (timeSec <= 0) { alert('Time should be mm:ss like 55:30'); return; }
-  runs.push({
+  const newRun = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
     date, type, distance, timeSec, rpe: selectedRPE, notes
-  });
+  };
+  runs.push(newRun);
   saveRuns();
   // reset
   document.getElementById('f-dist').value = '';
@@ -1068,6 +1069,21 @@ document.getElementById('saveRun').addEventListener('click', () => {
   document.querySelectorAll('.rpe-btn').forEach(x => x.classList.remove('selected'));
   selectedRPE = null;
   renderAll();
+  // WhatsApp notification
+  try {
+    const paceStr = newRun.timeSec && newRun.distance ? fmtPace(newRun.timeSec / newRun.distance) : null;
+    fetch(WORKER_URL + '/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: newRun.date,
+        distance: newRun.distance,
+        type: newRun.type,
+        pace: paceStr,
+        notes: newRun.notes || ''
+      })
+    });
+  } catch(e) { /* silent */ }
 });
 
 document.addEventListener('click', e => {
