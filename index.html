@@ -1643,15 +1643,10 @@ async function askCoach(prompt, btnEl) {
   if (btnEl) btnEl.classList.add('loading');
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(WORKER_URL + '/coach', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: `Du bist ein motivierender, persönlicher Laufcoach. Du antwortest auf Deutsch, kurz und präzise. Du kennst die Trainingsdaten des Läufers und gibst konkretes, hilfreiches Feedback. Keine langen Einleitungen. Nutze Emojis sparsam aber wirkungsvoll.`,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ prompt })
     });
     const data = await res.json();
     const text = data.content?.[0]?.text || 'Keine Antwort erhalten.';
