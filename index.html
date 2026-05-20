@@ -478,8 +478,9 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 
 /* ── MOBILE ── */
 @media (max-width: 700px) {
-  /* Prevent horizontal scroll */
-  html, body { overflow-x: hidden; max-width: 100vw; }
+  /* Prevent horizontal scroll - use clip not hidden to not break sticky */
+  html { overflow-x: clip; }
+  body { overflow-x: clip; max-width: 100vw; }
 
   /* Header: logo left, title right — no meta/strava in top bar */
   .header-top {
@@ -508,7 +509,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 
   nav.tabs { padding: 0; }
   .tab { padding: 10px 6px; font-size: 10px; letter-spacing: 0.05em; flex: 1; }
-  .wrap { padding: 20px 16px 60px; max-width: 100%; overflow-x: hidden; }
+  .wrap { padding: 20px 16px 60px; max-width: 100%; }
 
   /* Stats 2x2 */
   .stats-row { grid-template-columns: 1fr 1fr; }
