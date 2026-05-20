@@ -1348,7 +1348,7 @@ function connectStrava() {
   window.location.href = WORKER_URL + '/auth';
 }
 
-async function refreshToken() {
+async async function refreshToken() {
   if (!stravaTokens?.refresh_token) return false;
   try {
     const res = await fetch(WORKER_URL + '/refresh', {
