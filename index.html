@@ -329,19 +329,64 @@ nav.tabs::-webkit-scrollbar { display: none; }
 
 /* ── LOG ── */
 .log-entry {
-  display: grid;
-  grid-template-columns: 90px 80px 1fr 80px 70px 36px;
-  gap: 0;
-  border-bottom: 1px solid var(--silver);
-  padding: 14px 0;
+  display: flex;
+  flex-direction: row;
   align-items: center;
-  font-size: 14px;
+  gap: 8px;
+  border-bottom: 1px solid var(--silver);
+  padding: 12px 0;
+  min-width: 0;
 }
-.log-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-soft); }
-.log-type { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
-.log-notes { color: var(--ink-soft); font-size: 13px; padding: 0 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.log-dist { font-family: 'Instrument Serif', serif; font-size: 20px; text-align: right; }
-.log-pace { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-soft); text-align: right; padding-right: 12px; }
+.log-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 60px;
+}
+.log-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 68px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.log-notes {
+  color: var(--ink-soft);
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-dist {
+  font-family: 'Instrument Serif', serif;
+  font-size: 18px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.log-dist-unit {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-left: 2px;
+}
+.log-pace {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 52px;
+  text-align: right;
+}
 .del-btn {
   background: #fee2e2;
   border: none;
@@ -353,6 +398,7 @@ nav.tabs::-webkit-scrollbar { display: none; }
   font-weight: 700;
   width: 28px;
   height: 28px;
+  min-width: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -360,7 +406,7 @@ nav.tabs::-webkit-scrollbar { display: none; }
   flex-shrink: 0;
 }
 .del-btn:hover { background: #dc2626; color: #fff !important; -webkit-text-fill-color: #fff !important; }
-.strava-source { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #fc4c02; }
+.strava-source { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #fc4c02; display: block; }
 
 /* ── FORM ── */
 .run-form {
@@ -548,17 +594,11 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   }
   .week-total-num { font-size: 24px; }
 
-  /* Log - single line per run */
-  .log-entry {
-    grid-template-columns: 60px 56px 1fr 56px 36px;
-    padding: 10px 0;
-    font-size: 12px;
-  }
+  /* Log - flex handles single line already */
   .log-pace { display: none; }
   .log-dist { font-size: 16px; }
-  .log-notes { font-size: 11px; padding: 0 8px; }
-  .log-date { font-size: 10px; }
-  .log-type { font-size: 9px; }
+  .log-date { width: 50px; }
+  .log-type { width: 56px; }
 
   /* Form */
   .run-form { padding: 14px; gap: 10px; }
@@ -909,12 +949,13 @@ function renderPlan() {
 
 function renderLogEntry(r) {
   const pace = r.timeSec && r.distance ? fmtPace(r.timeSec / r.distance) : '—';
+  const stravaTag = r.source === 'strava' ? '<span class="strava-source">STR</span>' : '';
   return `<div class="log-entry">
-    <div class="log-date">${fmtDateLong(r.date).split(',')[0]}<strong>${fmtDate(r.date)}</strong></div>
-    <div class="log-type">${r.type}${r.notes ? `<small>${escapeHtml(r.notes)}</small>` : ''}</div>
-    <div class="log-metric">${r.distance.toFixed(1)}<small>km</small></div>
-    <div class="log-metric">${pace}<small>/km</small></div>
-    <div><span class="log-rpe">${r.rpe || '—'}</span></div>
+    <div class="log-date">${fmtDate(r.date)}</div>
+    <div class="log-type">${r.type}${stravaTag}</div>
+    <div class="log-notes">${r.notes ? escapeHtml(r.notes) : ''}</div>
+    <div class="log-dist">${r.distance.toFixed(1)}<span class="log-dist-unit">km</span></div>
+    <div class="log-pace">${pace}</div>
     <button class="del-btn" data-id="${r.id}" title="Delete">✕</button>
   </div>`;
 }
