@@ -1510,12 +1510,11 @@ async function openRunDetail(run) {
     setTimeout(() => {
       if (modalMap) { modalMap.remove(); modalMap = null; }
       modalMap = L.map('modalMap', { zoomControl: true, scrollWheelZoom: false, attributionControl: false });
-      // Stadia Alidade Smooth - clean minimal light tiles
-      L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', {
+      // CartoDB Positron - clean minimal light tiles, no API key needed
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
-        attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap'
+        attribution: '© OpenStreetMap © CARTO'
       }).addTo(modalMap);
-      L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(modalMap);
       const coords = decodePolyline(act.map.summary_polyline);
       const polyline = L.polyline(coords, { color: '#1e2cff', weight: 4, opacity: 1 }).addTo(modalMap);
       modalMap.fitBounds(polyline.getBounds(), { padding: [32, 32] });
