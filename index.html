@@ -680,6 +680,20 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   height: 280px;
   background: var(--paper-2);
 }
+.modal-map .leaflet-tile-pane { filter: grayscale(0.15) brightness(1.02); }
+.modal-map .leaflet-control-zoom a {
+  font-family: 'Inter Tight', sans-serif !important;
+  color: var(--ink) !important;
+  border-color: var(--silver) !important;
+}
+.modal-map .leaflet-control-zoom a:hover { background: var(--paper-2) !important; }
+.modal-map .leaflet-attribution-flag { display: none !important; }
+.modal-map .leaflet-control-attribution {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  background: rgba(255,255,255,0.7) !important;
+  color: var(--ink-soft) !important;
+}
 .modal-kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1495,17 +1509,24 @@ async function openRunDetail(run) {
   if (hasMap) {
     setTimeout(() => {
       if (modalMap) { modalMap.remove(); modalMap = null; }
-      modalMap = L.map('modalMap', { zoomControl: true, scrollWheelZoom: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
+      modalMap = L.map('modalMap', { zoomControl: true, scrollWheelZoom: false, attributionControl: false });
+      // Stadia Alidade Smooth - clean minimal light tiles
+      L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', {
+        maxZoom: 20,
+        attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap'
       }).addTo(modalMap);
+      L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(modalMap);
       const coords = decodePolyline(act.map.summary_polyline);
-      const polyline = L.polyline(coords, { color: '#1e2cff', weight: 3.5, opacity: 0.85 }).addTo(modalMap);
-      modalMap.fitBounds(polyline.getBounds(), { padding: [20, 20] });
-      // Start/end markers
+      const polyline = L.polyline(coords, { color: '#1e2cff', weight: 4, opacity: 1 }).addTo(modalMap);
+      modalMap.fitBounds(polyline.getBounds(), { padding: [32, 32] });
+      // Start marker - white circle with blue border
       if (coords.length) {
-        L.circleMarker(coords[0], { radius: 6, fillColor: '#22c55e', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(modalMap);
-        L.circleMarker(coords[coords.length-1], { radius: 6, fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(modalMap);
+        L.circleMarker(coords[0], {
+          radius: 7, fillColor: '#fff', color: '#1e2cff', weight: 3, fillOpacity: 1
+        }).bindTooltip('Start', { permanent: false }).addTo(modalMap);
+        L.circleMarker(coords[coords.length-1], {
+          radius: 7, fillColor: '#1e2cff', color: '#fff', weight: 2.5, fillOpacity: 1
+        }).bindTooltip('Finish', { permanent: false }).addTo(modalMap);
       }
     }, 100);
   }
