@@ -58,10 +58,13 @@
   async function check() {
     const stored = sessionStorage.getItem('pw_ok');
     if (stored === HASH) return;
-    document.body.style.display = 'none';
+    function hide() {
+      if (document.body) document.body.style.display = 'none';
+    }
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', showLoginPage);
+      document.addEventListener('DOMContentLoaded', () => { hide(); showLoginPage(); });
     } else {
+      hide();
       showLoginPage();
     }
   }
@@ -1416,7 +1419,9 @@ async function openRunDetail(run) {
   inner.innerHTML = '<div class="modal-loading">Loading run details…</div>';
 
   // Ensure fresh token
-  await maybeRefreshToken();
+  if (stravaTokens?.expires_at && Date.now()/1000 > stravaTokens.expires_at - 300) {
+    await refreshToken();
+  }
   const token = stravaTokens?.access_token;
   if (!token) {
     inner.innerHTML = '<div class="modal-loading">Not connected to Strava.</div>';
