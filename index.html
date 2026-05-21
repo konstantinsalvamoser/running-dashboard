@@ -44,6 +44,10 @@
               style="width:100%;padding:18px;background:#1e2cff;color:#fff;border:none;font-size:12px;font-weight:700;letter-spacing:0.12em;cursor:pointer;text-transform:uppercase;display:block;font-family:system-ui,sans-serif;">
               CONTINUE →
             </button>
+            <button id="bioBtn"
+              style="display:none;width:100%;padding:14px;background:#f4f5f7;color:#0a0a0f;border:none;border-top:1px solid #e5e7eb;font-size:13px;cursor:pointer;font-family:system-ui,sans-serif;align-items:center;justify-content:center;gap:8px;">
+              🔒 Face ID / Touch ID
+            </button>
             <div id="pwErr" style="text-align:center;font-size:12px;color:#e53e3e;padding:10px;min-height:36px;background:#fff;font-family:system-ui,sans-serif;"></div>
           </div>
         </div>
@@ -54,6 +58,7 @@
       const h = await sha256(pw);
       if (h === HASH) {
         sessionStorage.setItem('pw_ok', HASH);
+        localStorage.setItem('bio_enrolled', HASH);
         location.reload();
       } else {
         document.getElementById('pwErr').textContent = 'Wrong password';
@@ -61,6 +66,50 @@
         document.getElementById('pwInput').focus();
       }
     });
+
+    // Biometric auth (Face ID / Touch ID via WebAuthn)
+    async function tryBiometric() {
+      if (!window.PublicKeyCredential) return;
+      try {
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if (!available) return;
+        const bioBtn = document.getElementById('bioBtn');
+        if (bioBtn) bioBtn.style.display = 'flex';
+      } catch(e) {}
+    }
+
+    async function biometricAuth() {
+      try {
+        // Use a simple credential assertion to trigger Face ID
+        const challenge = crypto.getRandomValues(new Uint8Array(32));
+        const cred = await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            timeout: 60000,
+            userVerification: 'required',
+            rpId: window.location.hostname,
+          }
+        });
+        if (cred) {
+          // Biometric passed — check if we have stored hash approval
+          const stored = localStorage.getItem('bio_enrolled');
+          if (stored === HASH) {
+            sessionStorage.setItem('pw_ok', HASH);
+            location.reload();
+          } else {
+            document.getElementById('pwErr').textContent = 'Biometric not enrolled. Enter password first.';
+          }
+        }
+      } catch(e) {
+        if (e.name !== 'NotAllowedError') {
+          document.getElementById('pwErr').textContent = 'Biometric failed. Use password.';
+        }
+      }
+    }
+
+    const bioBtn = document.getElementById('bioBtn');
+    if (bioBtn) bioBtn.addEventListener('click', biometricAuth);
+    tryBiometric();
   }
   async function check() {
     const stored = sessionStorage.getItem('pw_ok');
@@ -624,15 +673,29 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   .log-type { width: 56px; }
 
   /* Form - full width stacked */
+  /* Streak - compact on mobile */
+  .streak-weeks { padding: 10px 12px; gap: 0; }
+  .streak-week { min-width: 0; padding-right: 6px; margin-right: 6px; }
+  .streak-day { width: 8px; height: 8px; }
+  .streak-days { gap: 2px; }
+  .streak-week-label { font-size: 7px; }
+
   .run-form {
     padding: 14px;
     gap: 10px;
     grid-template-columns: 1fr;
   }
   .run-form .form-group { grid-column: 1 / -1; }
+  input[type="date"].form-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    max-width: 100%;
+    display: block;
+  }
   .save-btn { width: 100%; }
-  .rpe-row { gap: 3px; flex-wrap: nowrap; }
-  .rpe-btn { width: 28px; height: 28px; font-size: 11px; flex-shrink: 0; }
+  .rpe-row { gap: 2px; flex-wrap: nowrap; width: 100%; }
+  .rpe-btn { flex: 1; height: 32px; font-size: 11px; min-width: 0; border-radius: 4px; }
 }
 
 /* ── RUN DETAIL MODAL ── */
