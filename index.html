@@ -1274,7 +1274,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
       <button class="coach-btn" id="coachAnalyse">
         <span class="coach-btn-icon">📊</span>
         <span class="coach-btn-label">Analyse training</span>
-        <span class="coach-btn-sub">Überblick über deine letzten Weekn</span>
+        <span class="coach-btn-sub">Overview of your recent weeks</span>
       </button>
       <button class="coach-btn" id="coachFeedback">
         <span class="coach-btn-icon">💬</span>
@@ -1854,7 +1854,7 @@ async function syncStrava() {
     const ok = await refreshToken();
     if (!ok) { stravaTokens = null; localStorage.removeItem('strava_tokens'); updateStravaWidget(); showToast('Token abactual — bitte neu verbinden'); return; }
   }
-  showToast('⟳ Sync läuft...');
+  showToast('⟳ Sync running...');
   try {
     const res = await fetch(`${WORKER_URL}/activities?access_token=${stravaTokens.access_token}&per_page=50`);
     const stravaRuns = await res.json();
@@ -1940,9 +1940,9 @@ function showCoachLoading(btnEl) {
 
 function getCoachAnalysis() {
   const recent = runs.filter(r => r.distance > 0);
-  if (!recent.length) return '🏃 Du hast noch keine runs eingeloggt. Starte deinen ersten run und komm zurück für eine Analyse!';
+  if (!recent.length) return '🏃 No runs logged yet. Start your first run and come back for an analysis!';
 
-  const totalKmVal = recent.reduce((s, r) => s + (r.distance || 0), 0);
+  const totalKmVal = recent.reduce((s, r) => s + (r.distance || 0), 0).toFixed(1);
   const weekNum = weekNumber();
   const longestRun = Math.max(...recent.map(r => r.distance || 0));
   const planRuns = recent.filter(r => {
@@ -1956,90 +1956,61 @@ function getCoachAnalysis() {
     .reduce((a, b, _, arr) => a + b / arr.length, 0);
 
   const weeksLeft = 12 - weekNum;
-  let form = weeksLeft > 8 ? 'Build phase' : weeksLeft > 4 ? 'Intensity phase' : 'Tapering phase';
+  const form = weeksLeft > 8 ? 'build phase' : weeksLeft > 4 ? 'intensity phase' : 'tapering phase';
 
-  let feedback = `📊 Training Analysis — Week ${weekNum}/12
-
-`;
-  feedback += `Du befindest dich in der ${form} deiner preparation.
-
-`;
-  feedback += `✅ Since plan start: ${planKm} km in ${planRuns.length} runsn
-`;
-  feedback += `🏆 Longest run: ${longestRun.toFixed(1)} km
-`;
-  if (avgPaceSec > 0) feedback += `⏱ Average pace: ${fmtPace(avgPaceSec)}/km
-
-`;
+  let feedback = `📊 Training Analysis — Week ${weekNum}/12\n\n`;
+  feedback += `You're in the ${form} of your half marathon prep.\n\n`;
+  feedback += `✅ Since plan start: ${planKm} km in ${planRuns.length} runs\n`;
+  feedback += `🏆 Longest run: ${longestRun.toFixed(1)} km\n`;
+  if (avgPaceSec > 0) feedback += `⏱ Average pace: ${fmtPace(avgPaceSec)}/km\n\n`;
 
   if (longestRun < 10) {
-    feedback += `💡 Fokus: Dein längster run liegt noch unter 10 km. Steigere den Long Run wöchentlich um max. 10% — das ist der wichtigste Baustein für den Halbmarathon.
-
-`;
+    feedback += `💡 Focus: Your longest run is still under 10 km. Increase your long run by max. 10% per week — it's the most important session for the half marathon.\n\n`;
   } else if (longestRun < 16) {
-    feedback += `💡 Fokus: Guter Fortschritt! Bring den Long Run auf 16-18 km — dann hast du eine solide Basis für die 21.1 km.
-
-`;
+    feedback += `💡 Focus: Good progress! Aim to get your long run to 16–18 km — that gives you a solid base for 21.1 km.\n\n`;
   } else {
-    feedback += `💡 Stark! Dein Long Run ist auf einem sehr guten Level. Jetzt geht es um Qualität und Konstanz.
-
-`;
+    feedback += `💡 Strong! Your long run is at a great level. Now it's about quality and consistency.\n\n`;
   }
 
   if (weeksLeft <= 3) {
-    feedback += `⚠️ Tapering: Reduziere das Volumen in den letzten 2 Weekn auf 60-70%. Dein Körper braucht jetzt recovery, nicht mehr km.
-
-`;
+    feedback += `⚠️ Tapering: Reduce volume by 30–40% in the last 2 weeks. Your body needs rest now, not more km.\n\n`;
   }
 
-  feedback += `🎯 Next goal: ${weeksLeft > 0 ? `Week ${weekNum + 1} — stay on track!` : 'Race Day — you're ready!'}`;
+  feedback += `🎯 Next goal: ${weeksLeft > 0 ? `Week ${weekNum + 1} — stay on track!` : "Race Day — you're ready!"}`;
   return feedback;
 }
 
+
 function getCoachFeedback() {
   const last = runs.find(r => r.distance > 0);
-  if (!last) return '🏃 No runs logged yet. Log deinen ersten Run und ich gebe dir Feedback!';
+  if (!last) return '🏃 No runs logged yet. Log your first run and I'll give you feedback!';
 
   const pace = last.timeSec && last.distance ? last.timeSec / last.distance : 0;
   const paceStr = pace ? fmtPace(pace) : '—';
 
-  let feedback = `💬 Feedback on your last run
-
-`;
-  feedback += `📅 ${last.date} · ${last.distance} km · ${last.type} · ${paceStr}/km
-
-`;
+  let feedback = `💬 Feedback on your last run\n\n`;
+  feedback += `📅 ${last.date} · ${last.distance} km · ${last.type} · ${paceStr}/km\n\n`;
 
   if (last.type === 'Easy') {
     if (pace > 0 && pace < 300) {
-      feedback += `⚡ Du warst etwas schnell für einen Easy Run. Versuche beim nächsten Mal die Pace bei 5:45-6:15/km zu halten — Zone 2 Training ist der Schlüssel für Ausdauer.
-
-`;
+      feedback += `⚡ You were a bit fast for an easy run. Try to keep the pace at 5:45–6:15/km — Zone 2 training is the key to endurance.\n\n`;
     } else {
-      feedback += `✅ Gutes Tempo für einen Easy Run! Zone 2 Training stärkt deine aerobe Basis — genau das Richtige.
-
-`;
+      feedback += `✅ Great pace for an easy run! Zone 2 training builds your aerobic base — exactly right.\n\n`;
     }
   } else if (last.type === 'Tempo' || last.type === 'Intervals') {
-    feedback += `🔥 Quality session completed! Nach einem hard run brauchst du mindestens 48h recovery bevor der nächste Quality-Run kommt.
-
-`;
+    feedback += `🔥 Quality session completed! After a hard session, give yourself at least 48h before the next quality run.\n\n`;
   } else if (last.type === 'Long') {
-    feedback += `🏅 Long Run erledigt — das ist die wichtigste Einheit der Week! Achte auf gute recovery: viel trinken, ausreichend schlafen, leichtes Stretching.
-
-`;
+    feedback += `🏅 Long run done — the most important session of the week! Focus on recovery: hydrate, sleep well, light stretching.\n\n`;
   }
 
   if (last.notes) {
-    feedback += `📝 You noted: "${last.notes}" — thanks for the note, das helps track your form.
-
-`;
+    feedback += `📝 You noted: "${last.notes}" — thanks for the note, it helps track your form.\n\n`;
   }
 
-  const next = runs.length > 1 ? runs[1] : null;
-  feedback += `⏭ For your next run: Warm up for 5-10 Min auf, starte langsam und steigere das Tempo erst nach dem ersten Kilometer.`;
+  feedback += `⏭ For your next run: warm up for 5–10 min, start slow and build pace after the first kilometre.`;
   return feedback;
 }
+
 
 function getMotivation() {
   const recent = runs.filter(r => r.distance > 0);
@@ -2047,18 +2018,166 @@ function getMotivation() {
   const weekNum = weekNumber();
   const weeksLeft = Math.max(0, 12 - weekNum);
 
-  const sprueche = [
-    `🔥 "${totalKm} km liegen hinter dir. Jeder einzelne davon hat dich stärker gemacht. Der Halbmarathon wartet — und you're ready."`,
-    `💪 "Week ${weekNum} von 12. Du bist ${Math.round((weekNum/12)*100)}% des Weges. Die härteste Meile ist die, die du nicht läufst."`,
-    `🏃 "In ${weeksLeft} Weekn stehst du an der Startlinie. Alles, was du heute tust, zählt. Zieh die Schuhe an."`,
-    `⚡ "Dein Körper hat ${totalKm} km überlebt. Er weiß, wie es geht. Vertrau ihm — und lauf."`,
-    `🌅 "Der beste run ist der nächste. Jeder Schritt bringt dich näher. Nicht morgen — heute."`,
-    `🏆 "Du trainierst nicht, um den Halbmarathon zu überleben. Du trainierst, um ihn zu beherrschen."`,
+  const quotes = [
+    `🔥 "${totalKm} km behind you. Every single one made you stronger. The half marathon awaits — and you're ready."`,
+    `💪 "Week ${weekNum} of 12. You're ${Math.round((weekNum/12)*100)}% of the way there. The hardest mile is the one you don't run."`,
+    `🏃 "In ${weeksLeft} weeks you'll be at the start line. Everything you do today counts. Not tomorrow — today."`,
+    `⚡ "Your body has survived ${totalKm} km. It knows what to do. Trust it — and run."`,
+    `🌅 "The best run is the next one. Every step brings you closer. Not tomorrow — today."`,
+    `🏆 "You're not training to survive the half marathon. You're training to own it."`,
   ];
-  return sprueche[Math.floor(Math.random() * sprueche.length)] + `
-
-— Your AI Coach 🤖`;
+  return quotes[Math.floor(Math.random() * quotes.length)] + `\n\n— Your AI Coach 🤖`;
 }
+
+
+function getRacePlan() {
+  const recent = runs.filter(r => r.timeSec && r.distance);
+  const avgPace = recent.length ? recent.reduce((s, r) => s + r.timeSec / r.distance, 0) / recent.length : 360;
+  const racePace = avgPace * 0.95;
+  const finishMin = Math.round((racePace * 21.1) / 60);
+  const finishH = Math.floor(finishMin / 60);
+  const finishM = finishMin % 60;
+
+  let plan = `🏁 Race Day Strategy — Half Marathon\n\n`;
+  plan += `🎯 Target pace: ${fmtPace(racePace)}/km → Target time: ${finishH}:${String(finishM).padStart(2,'0')} h\n\n`;
+  plan += `📋 Pacing strategy:\n`;
+  plan += `• km 1–3: Start slow! 10–15 sec/km SLOWER than target pace. The crowd pulls — don't get swept away.\n`;
+  plan += `• km 4–10: Lock into target pace. Find your rhythm, breathe evenly.\n`;
+  plan += `• km 11–16: Consistency is everything. When it gets hard — one km at a time.\n`;
+  plan += `• km 17–19: Now it's all mental. Break it down into small chunks.\n`;
+  plan += `• km 20–21.1: Give it everything. You trained for this moment.\n\n`;
+  plan += `💧 Nutrition:\n`;
+  plan += `• Drink every 5 km, even if you're not thirsty yet\n`;
+  plan += `• Gel/energy at km 8–10 if available\n\n`;
+  plan += `🧠 Mental:\n`;
+  plan += `• Race day nerves = energy. Use it.\n`;
+  plan += `• Split the race into 3 sections of 7 km\n`;
+  plan += `• Prepare a mantra for the tough moments\n\n`;
+  plan += `⏰ Race morning: Wake up 3h before start, light breakfast, 30 min warm-up.\n\nYou've got this! 🏃‍♂️`;
+  return plan;
+}
+
+
+function showCoachResponse(text, btnEl) {
+  const responseEl = document.getElementById('coachResponse');
+  const bodyEl = document.getElementById('coachResponseBody');
+  responseEl.style.display = 'block';
+  bodyEl.className = 'coach-response-body';
+  // Typeewriter effect
+  bodyEl.textContent = '';
+  let i = 0;
+  const interval = setInterval(() => {
+    bodyEl.textContent += text[i++];
+    if (i >= text.length) clearInterval(interval);
+  }, 12);
+  responseEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (btnEl) btnEl.classList.remove('loading');
+}
+
+function showCoachLoading(btnEl) {
+  const responseEl = document.getElementById('coachResponse');
+  const bodyEl = document.getElementById('coachResponseBody');
+  responseEl.style.display = 'block';
+  bodyEl.className = 'coach-response-body';
+  bodyEl.innerHTML = `<div class="coach-typing">
+    <div class="coach-typing-dots"><span></span><span></span><span></span></div>
+    AI Coach is analysing your training…
+  </div>`;
+  responseEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (btnEl) btnEl.classList.add('loading');
+}
+
+function getCoachAnalysis() {
+  const recent = runs.filter(r => r.distance > 0);
+  if (!recent.length) return '🏃 No runs logged yet. Start your first run and come back for an analysis!';
+
+  const totalKmVal = recent.reduce((s, r) => s + (r.distance || 0), 0).toFixed(1);
+  const weekNum = weekNumber();
+  const longestRun = Math.max(...recent.map(r => r.distance || 0));
+  const planRuns = recent.filter(r => {
+    const ds = r.date.substring(0,10).split('-');
+    const d = new Date(parseInt(ds[0]), parseInt(ds[1])-1, parseInt(ds[2]));
+    return Math.floor((d - localStartDate()) / 86400000 / 7) >= 0;
+  });
+  const planKm = planRuns.reduce((s, r) => s + (r.distance || 0), 0).toFixed(1);
+  const avgPaceSec = recent.filter(r => r.timeSec && r.distance)
+    .map(r => r.timeSec / r.distance)
+    .reduce((a, b, _, arr) => a + b / arr.length, 0);
+
+  const weeksLeft = 12 - weekNum;
+  const form = weeksLeft > 8 ? 'build phase' : weeksLeft > 4 ? 'intensity phase' : 'tapering phase';
+
+  let feedback = `📊 Training Analysis — Week ${weekNum}/12\n\n`;
+  feedback += `You're in the ${form} of your half marathon prep.\n\n`;
+  feedback += `✅ Since plan start: ${planKm} km in ${planRuns.length} runs\n`;
+  feedback += `🏆 Longest run: ${longestRun.toFixed(1)} km\n`;
+  if (avgPaceSec > 0) feedback += `⏱ Average pace: ${fmtPace(avgPaceSec)}/km\n\n`;
+
+  if (longestRun < 10) {
+    feedback += `💡 Focus: Your longest run is still under 10 km. Increase your long run by max. 10% per week — it's the most important session for the half marathon.\n\n`;
+  } else if (longestRun < 16) {
+    feedback += `💡 Focus: Good progress! Aim to get your long run to 16–18 km — that gives you a solid base for 21.1 km.\n\n`;
+  } else {
+    feedback += `💡 Strong! Your long run is at a great level. Now it's about quality and consistency.\n\n`;
+  }
+
+  if (weeksLeft <= 3) {
+    feedback += `⚠️ Tapering: Reduce volume by 30–40% in the last 2 weeks. Your body needs rest now, not more km.\n\n`;
+  }
+
+  feedback += `🎯 Next goal: ${weeksLeft > 0 ? `Week ${weekNum + 1} — stay on track!` : "Race Day — you're ready!"}`;
+  return feedback;
+}
+
+
+function getCoachFeedback() {
+  const last = runs.find(r => r.distance > 0);
+  if (!last) return '🏃 No runs logged yet. Log your first run and I'll give you feedback!';
+
+  const pace = last.timeSec && last.distance ? last.timeSec / last.distance : 0;
+  const paceStr = pace ? fmtPace(pace) : '—';
+
+  let feedback = `💬 Feedback on your last run\n\n`;
+  feedback += `📅 ${last.date} · ${last.distance} km · ${last.type} · ${paceStr}/km\n\n`;
+
+  if (last.type === 'Easy') {
+    if (pace > 0 && pace < 300) {
+      feedback += `⚡ You were a bit fast for an easy run. Try to keep the pace at 5:45–6:15/km — Zone 2 training is the key to endurance.\n\n`;
+    } else {
+      feedback += `✅ Great pace for an easy run! Zone 2 training builds your aerobic base — exactly right.\n\n`;
+    }
+  } else if (last.type === 'Tempo' || last.type === 'Intervals') {
+    feedback += `🔥 Quality session completed! After a hard session, give yourself at least 48h before the next quality run.\n\n`;
+  } else if (last.type === 'Long') {
+    feedback += `🏅 Long run done — the most important session of the week! Focus on recovery: hydrate, sleep well, light stretching.\n\n`;
+  }
+
+  if (last.notes) {
+    feedback += `📝 You noted: "${last.notes}" — thanks for the note, it helps track your form.\n\n`;
+  }
+
+  feedback += `⏭ For your next run: warm up for 5–10 min, start slow and build pace after the first kilometre.`;
+  return feedback;
+}
+
+
+function getMotivation() {
+  const recent = runs.filter(r => r.distance > 0);
+  const totalKm = recent.reduce((s, r) => s + (r.distance || 0), 0).toFixed(0);
+  const weekNum = weekNumber();
+  const weeksLeft = Math.max(0, 12 - weekNum);
+
+  const quotes = [
+    `🔥 "${totalKm} km behind you. Every single one made you stronger. The half marathon awaits — and you're ready."`,
+    `💪 "Week ${weekNum} of 12. You're ${Math.round((weekNum/12)*100)}% of the way there. The hardest mile is the one you don't run."`,
+    `🏃 "In ${weeksLeft} weeks you'll be at the start line. Everything you do today counts. Not tomorrow — today."`,
+    `⚡ "Your body has survived ${totalKm} km. It knows what to do. Trust it — and run."`,
+    `🌅 "The best run is the next one. Every step brings you closer. Not tomorrow — today."`,
+    `🏆 "You're not training to survive the half marathon. You're training to own it."`,
+  ];
+  return quotes[Math.floor(Math.random() * quotes.length)] + `\n\n— Your AI Coach 🤖`;
+}
+
 
 function getRacePlan() {
   const recent = runs.filter(r => r.timeSec && r.distance);
@@ -2084,7 +2203,7 @@ function getRacePlan() {
 `;
   plan += `• km 17-19: Now it's all mental. "Nur noch X km" — runterbrechen in kleine Einheiten.
 `;
-  plan += `• km 20-21.1: Give it everything. Du hast trainiert für diesen Moment.
+  plan += `• km 20-21.1: Give it everything. Du hast trainiert for this moment.
 
 `;
   plan += `💧 Nutrition:
@@ -2096,11 +2215,11 @@ function getRacePlan() {
 `;
   plan += `🧠 Mental:
 `;
-  plan += `• Race Day Nervosität = Energie. Nutze sie.
+  plan += `• Race Day Nervositay nerves = energy. Use it.
 `;
   plan += `• Teile die Strecke in 3 Abschnitte à 7 km
 `;
-  plan += `• Mantras vorbereiten für schwierige Momente
+  plan += `• Mantras vorbereiten for tough moments
 
 `;
   plan += `⏰ Race morning: Aufstehen 3h vor Start, light breakfast, 30 Min warm up.
