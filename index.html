@@ -1271,6 +1271,49 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   white-space: nowrap;
   margin-top: 6px;
 }
+
+/* ── TRAINING ZONES ── */
+.zone-bar { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.zone-label { font-family:'JetBrains Mono',monospace; font-size:10px; width:70px; flex-shrink:0; letter-spacing:0.06em; }
+.zone-track { flex:1; height:10px; background:var(--silver); border-radius:5px; overflow:hidden; }
+.zone-fill { height:100%; border-radius:5px; transition:width 0.6s ease; }
+.zone-pct { font-family:'JetBrains Mono',monospace; font-size:10px; width:36px; text-align:right; color:var(--ink-soft); }
+
+/* ── PR BADGE ── */
+.pr-badge {
+  display:inline-flex;align-items:center;gap:4px;
+  background:#fef3c7;border:1px solid #f59e0b;
+  color:#92400e;-webkit-text-fill-color:#92400e;
+  border-radius:3px;padding:1px 6px;
+  font-family:'JetBrains Mono',monospace;font-size:8px;
+  letter-spacing:0.08em;font-weight:700;
+  margin-left:6px;vertical-align:middle;
+}
+
+/* ── FORM CURVE ── */
+.form-chart-wrap { height:160px; position:relative; margin-top:8px; }
+.form-legend { display:flex; gap:20px; margin-top:8px; }
+.form-legend-item { display:flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--ink-soft); letter-spacing:0.06em; }
+.form-legend-dot { width:10px; height:3px; border-radius:2px; }
+
+/* ── INJURY INDICATOR ── */
+.injury-bar {
+  border:1px solid var(--silver-2);
+  border-radius:4px;
+  overflow:hidden;
+  margin-bottom:40px;
+}
+.injury-header {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;background:var(--paper-2);
+  border-bottom:1px solid var(--silver);
+}
+.injury-title { font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;color:var(--ink-soft); }
+.injury-body { padding:16px 20px; }
+.injury-meter-track { height:12px;background:var(--silver);border-radius:6px;overflow:hidden;margin:8px 0; }
+.injury-meter-fill { height:100%;border-radius:6px;transition:width 0.8s ease; }
+.injury-label { font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em; }
+.injury-tips { margin-top:12px;font-size:13px;color:var(--ink-soft);line-height:1.6; }
 </style>
 </head>
 <body>
@@ -1418,6 +1461,24 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
     <div class="chart-section">
       <div class="chart-title">Easy / Long pace trend</div>
       <div class="chart-wrap"><canvas id="chartPace"></canvas></div>
+    </div>
+    <div class="chart-section" id="injurySection"></div>
+    <div class="chart-section">
+      <div class="chart-title">Training zones — last 30 days</div>
+      <div id="zonesChart"></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">Personal bests</div>
+      <div id="prSection"></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">Form curve — fitness vs fatigue</div>
+      <div class="form-chart-wrap"><canvas id="chartForm"></canvas></div>
+      <div class="form-legend">
+        <div class="form-legend-item"><div class="form-legend-dot" style="background:#1e2cff"></div>Fitness (CTL)</div>
+        <div class="form-legend-item"><div class="form-legend-dot" style="background:#ef4444"></div>Fatigue (ATL)</div>
+        <div class="form-legend-item"><div class="form-legend-dot" style="background:#22c55e"></div>Form (TSB)</div>
+      </div>
     </div>
   </section>
 
@@ -1783,14 +1844,24 @@ function renderPlan() {
     </div>`).join('');
 }
 
+function isPR(run) {
+  // Check if this run is a personal best for its distance category
+  if (!run.timeSec || !run.distance) return false;
+  const pace = run.timeSec / run.distance;
+  const sameDist = runs.filter(r => r.id !== run.id && r.distance && r.timeSec &&
+    Math.abs(r.distance - run.distance) < 0.5);
+  return sameDist.length > 0 && sameDist.every(r => (r.timeSec / r.distance) >= pace);
+}
+
 function renderLogEntry(r) {
   const pace = r.timeSec && r.distance ? fmtPace(r.timeSec / r.distance) : '—';
   const stravaTag = r.source === 'strava' ? '<span class="strava-source">STR</span>' : '';
+  const prTag = isPR(r) ? '<span class="pr-badge">🏆 PR</span>' : '';
   const clickable = r.stravaId ? ' style="cursor:pointer;"' : '';
   return `<div class="log-entry"${clickable} data-run-id="${r.id}">
     <div class="log-date">${fmtDate(r.date)}</div>
     <div class="log-type">${r.type}${stravaTag}</div>
-    <div class="log-notes">${r.notes ? escapeHtml(r.notes) : ''}</div>
+    <div class="log-notes">${r.notes ? escapeHtml(r.notes) : ''}${prTag}</div>
     <div class="log-dist">${r.distance.toFixed(1)}<span class="log-dist-unit">km</span></div>
     <div class="log-pace">${pace}</div>
     <button class="del-btn" data-id="${r.id}" title="Delete">✕</button>
@@ -1895,6 +1966,131 @@ function renderStats() {
       }
     }
   });
+
+
+  // ── TRAINING ZONES ──
+  const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const recentRuns30 = runs.filter(r => r.timeSec && r.distance && new Date(r.date) >= thirtyDaysAgo);
+  const zones = {z1:0, z2:0, z3:0, z4:0, z5:0};
+  recentRuns30.forEach(r => {
+    const pace = r.timeSec / r.distance;
+    if (pace > 390) zones.z1 += r.distance;       // >6:30 recovery
+    else if (pace > 330) zones.z2 += r.distance;  // 5:30-6:30 easy
+    else if (pace > 300) zones.z3 += r.distance;  // 5:00-5:30 tempo
+    else if (pace > 270) zones.z4 += r.distance;  // 4:30-5:00 threshold
+    else zones.z5 += r.distance;                   // <4:30 VO2max
+  });
+  const totalZ = Object.values(zones).reduce((a,b) => a+b, 0) || 1;
+  const zoneColors = ['#93c5fd','#3b82f6','#f59e0b','#ef4444','#7c3aed'];
+  const zoneNames = ['Z1 Recovery','Z2 Easy','Z3 Tempo','Z4 Threshold','Z5 VO2max'];
+  const zoneValues = [zones.z1, zones.z2, zones.z3, zones.z4, zones.z5];
+  document.getElementById('zonesChart').innerHTML = zoneValues.map((v,i) => {
+    const pct = Math.round((v/totalZ)*100);
+    return `<div class="zone-bar">
+      <div class="zone-label" style="color:${zoneColors[i]}">${zoneNames[i]}</div>
+      <div class="zone-track"><div class="zone-fill" style="width:${pct}%;background:${zoneColors[i]}"></div></div>
+      <div class="zone-pct">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  // ── PERSONAL BESTS ──
+  const pbDistances = [5, 10, 15, 21.1];
+  const pbRows = pbDistances.map(dist => {
+    const matching = runs.filter(r => r.distance && r.timeSec && Math.abs(r.distance - dist) < 0.5)
+      .sort((a,b) => (a.timeSec/a.distance) - (b.timeSec/b.distance));
+    if (!matching.length) return `<div style="display:grid;grid-template-columns:80px 1fr 100px;padding:10px 0;border-bottom:1px solid var(--silver);align-items:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft)">${dist}K</div>
+      <div style="font-size:13px;color:var(--silver-2)">No runs yet</div>
+    </div>`;
+    const best = matching[0];
+    const pace = fmtPace(best.timeSec / best.distance);
+    const total = fmtDuration(best.timeSec);
+    return `<div style="display:grid;grid-template-columns:80px 1fr 80px 80px;padding:10px 0;border-bottom:1px solid var(--silver);align-items:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em">${dist === 21.1 ? 'HM' : dist+'K'}</div>
+      <div style="font-family:'Instrument Serif',serif;font-size:22px;letter-spacing:-0.02em">${total}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-soft)">${pace}/km</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink-soft)">${best.date}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('prSection').innerHTML = pbRows;
+
+  // ── INJURY RISK INDICATOR ──
+  const last14 = runs.filter(r => {
+    const d = new Date(r.date); const now = new Date();
+    return (now - d) / 86400000 <= 14;
+  });
+  const prev14 = runs.filter(r => {
+    const d = new Date(r.date); const now = new Date();
+    const days = (now - d) / 86400000;
+    return days > 14 && days <= 28;
+  });
+  const km14 = last14.reduce((s,r) => s + (r.distance||0), 0);
+  const kmPrev14 = prev14.reduce((s,r) => s + (r.distance||0), 0) || 1;
+  const increaseRatio = km14 / kmPrev14;
+  const daysOff = (() => { let c=0; for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);const ds=d.toISOString().split('T')[0];if(!runs.some(r=>r.date===ds))c++;} return c; })();
+
+  let riskScore = 0;
+  let riskTips = [];
+  if (increaseRatio > 1.3) { riskScore += 40; riskTips.push('⚠️ Volume up ' + Math.round((increaseRatio-1)*100) + '% vs last 2 weeks — stay within 10% per week'); }
+  if (increaseRatio > 1.1 && increaseRatio <= 1.3) { riskScore += 15; riskTips.push('📈 Slight volume increase — watch how you feel'); }
+  if (daysOff < 2) { riskScore += 30; riskTips.push('😴 Less than 2 rest days this week — recovery is where you improve'); }
+  if (last14.filter(r => r.type === 'Tempo' || r.type === 'Intervals').length > 3) { riskScore += 20; riskTips.push('🔥 3+ quality sessions in 2 weeks — balance with easy runs'); }
+  if (riskTips.length === 0) riskTips.push('✅ Training load looks healthy — keep it up!');
+
+  const riskColor = riskScore < 25 ? '#22c55e' : riskScore < 55 ? '#f59e0b' : '#ef4444';
+  const riskLabel = riskScore < 25 ? 'LOW RISK' : riskScore < 55 ? 'MODERATE' : 'HIGH RISK';
+  document.getElementById('injurySection').innerHTML = `
+    <div class="injury-bar">
+      <div class="injury-header">
+        <div class="injury-title">🩺 Injury risk indicator</div>
+        <div class="injury-label" style="color:${riskColor};-webkit-text-fill-color:${riskColor};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.1em">${riskLabel}</div>
+      </div>
+      <div class="injury-body">
+        <div class="injury-meter-track">
+          <div class="injury-meter-fill" style="width:${Math.min(100,riskScore)}%;background:${riskColor}"></div>
+        </div>
+        <div class="injury-tips">${riskTips.join('<br>')}</div>
+      </div>
+    </div>`;
+
+  // ── FORM CURVE (CTL/ATL/TSB) ──
+  const formWeeks = 12;
+  const formData = Array.from({length: formWeeks}, (_, wi) => {
+    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - (formWeeks-1-wi)*7 - weekStart.getDay() + 1);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+    const wkRuns = runs.filter(r => { const d = new Date(r.date); return d >= weekStart && d <= weekEnd; });
+    const km = wkRuns.reduce((s,r) => s + (r.distance||0), 0);
+    return { label: weekStart.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'}), km };
+  });
+  // CTL = 42-day avg, ATL = 7-day avg, TSB = CTL - ATL (simplified to weekly)
+  const ctlData = formData.map((_, i) => {
+    const slice = formData.slice(Math.max(0,i-5), i+1);
+    return slice.reduce((s,d) => s+d.km, 0) / slice.length;
+  });
+  const atlData = formData.map((_, i) => {
+    const slice = formData.slice(Math.max(0,i-1), i+1);
+    return slice.reduce((s,d) => s+d.km, 0) / slice.length;
+  });
+  const tsbData = ctlData.map((ctl,i) => ctl - atlData[i]);
+
+  if (charts.form) { charts.form.destroy(); delete charts.form; }
+  const formCtx = document.getElementById('chartForm');
+  if (formCtx) {
+    charts.form = new Chart(formCtx, {
+      type: 'line',
+      data: {
+        labels: formData.map(d => d.label),
+        datasets: [
+          { label:'Fitness', data: ctlData, borderColor:'#1e2cff', backgroundColor:'rgba(30,44,255,0.08)', tension:0.4, fill:true, pointRadius:3 },
+          { label:'Fatigue', data: atlData, borderColor:'#ef4444', backgroundColor:'transparent', tension:0.4, pointRadius:3 },
+          { label:'Form', data: tsbData, borderColor:'#22c55e', backgroundColor:'transparent', tension:0.4, borderDash:[4,3], pointRadius:3 },
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+        scales:{ x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:'JetBrains Mono',size:9}}},
+                 y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{family:'JetBrains Mono',size:9}}} } }
+    });
+  }
 }
 
 function renderAll() {
