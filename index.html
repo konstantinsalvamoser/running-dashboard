@@ -606,10 +606,11 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
     padding: 8px 6px;
     border-left: none;
   }
-  .week-total-num { font-size: 22px; }
-  .week-total small { font-size: 7px; }
+  .week-total-num { font-size: 20px; }
+  .week-total small { font-size: 7px; letter-spacing: 0.06em; }
   .week-actual-num { font-size: 20px; }
-  .week-actual-km small { font-size: 7px; }
+  .week-actual-km small { font-size: 7px; letter-spacing: 0.06em; }
+  .week-actual-km { margin-top: 6px; padding-top: 6px; }
 
   /* Log - flex handles single line already */
   .log-pace { display: none; }
@@ -617,9 +618,16 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   .log-date { width: 50px; }
   .log-type { width: 56px; }
 
-  /* Form */
-  .run-form { padding: 14px; gap: 10px; }
+  /* Form - full width stacked */
+  .run-form {
+    padding: 14px;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+  .run-form .form-group { grid-column: 1 / -1; }
   .save-btn { width: 100%; }
+  .rpe-row { gap: 4px; }
+  .rpe-btn { width: 30px; height: 30px; font-size: 11px; }
 }
 
 /* ── RUN DETAIL MODAL ── */
