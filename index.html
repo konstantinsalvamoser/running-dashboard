@@ -938,6 +938,120 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   .coach-actions { grid-template-columns: 1fr; }
   .coach-hero { padding: 32px 16px 28px; }
 }
+
+/* ── ELEVATION PROFILE ── */
+.elev-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+  padding-bottom: 20px;
+  position: relative;
+}
+.elev-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  cursor: default;
+}
+.elev-bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  min-height: 4px;
+  transition: opacity 0.15s;
+}
+.elev-bar:hover { opacity: 0.7; }
+.elev-bar.elev-up { background: #1e2cff; }
+.elev-bar.elev-down { background: #ef4444; }
+.elev-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+.elev-legend {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+}
+
+/* ── STREAK TRACKER ── */
+.streak-bar {
+  border: 1px solid var(--silver-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.streak-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--silver);
+  background: var(--paper-2);
+}
+.streak-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--ink-soft);
+}
+.streak-count {
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+.streak-count span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  margin-left: 4px;
+  letter-spacing: 0.08em;
+}
+.streak-weeks {
+  display: flex;
+  gap: 0;
+  padding: 16px 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.streak-weeks::-webkit-scrollbar { display: none; }
+.streak-week {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 40px;
+}
+.streak-week-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.streak-days {
+  display: flex;
+  gap: 3px;
+}
+.streak-day {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--silver);
+  position: relative;
+}
+.streak-day.has-run { background: #1e2cff; }
+.streak-day.today { outline: 2px solid var(--ink); outline-offset: 1px; }
 </style>
 </head>
 <body>
@@ -991,8 +1105,14 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
         <div class="stat-value"><span id="totalRuns">0</span></div>
       </div>
     </div>
+    <div id="streakTracker" style="margin-bottom:32px;"></div>
     <div class="ornament">This week's plan</div>
     <div id="thisWeekPlan"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+      <button id="sendWeeklyReport" style="background:none;border:1px solid var(--silver-2);border-radius:4px;padding:8px 16px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;color:var(--ink-soft);transition:all 0.2s;">
+        📤 Wochenbericht senden
+      </button>
+    </div>
     <div class="ornament">Recent runs</div>
     <div id="recentRuns" class="log-list"></div>
   </section>
@@ -1236,6 +1356,58 @@ function renderHeader() {
   document.getElementById('raceDay').textContent = raceDay().toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
 }
 
+function renderStreakTracker() {
+  const el = document.getElementById('streakTracker');
+  if (!el) return;
+
+  // Build last 8 weeks day map
+  const today = new Date();
+  const runDates = new Set(runs.map(r => r.date.substring(0,10)));
+
+  // Current streak (consecutive weeks with 3+ runs)
+  let weekStreak = 0;
+  for (let w = 0; w < 12; w++) {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay() + 1 - w * 7);
+    let weekRuns = 0;
+    for (let d = 0; d < 7; d++) {
+      const dd = new Date(weekStart);
+      dd.setDate(weekStart.getDate() + d);
+      const ds = dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
+      if (runDates.has(ds)) weekRuns++;
+    }
+    if (weekRuns >= 2) weekStreak++;
+    else if (w > 0) break;
+  }
+
+  // Build 8 weeks of day dots
+  const weeksHtml = Array.from({length: 8}, (_, wi) => {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay() + 1 - (7 - wi) * 7);
+    const label = weekStart.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+    const dots = Array.from({length: 7}, (_, di) => {
+      const dd = new Date(weekStart);
+      dd.setDate(weekStart.getDate() + di);
+      const ds = dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
+      const isToday = ds === (today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0'));
+      const hasRun = runDates.has(ds);
+      return `<div class="streak-day ${hasRun ? 'has-run' : ''} ${isToday ? 'today' : ''}" title="${ds}${hasRun ? ' 🏃' : ''}"></div>`;
+    }).join('');
+    return `<div class="streak-week">
+      <div class="streak-days">${dots}</div>
+      <div class="streak-week-label">${label}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="streak-bar">
+    <div class="streak-header">
+      <div class="streak-title">🔥 Trainings-Streak</div>
+      <div class="streak-count">${weekStreak}<span>Wochen in Folge</span></div>
+    </div>
+    <div class="streak-weeks">${weeksHtml}</div>
+  </div>`;
+}
+
 function renderDashboard() {
   const week = runsInLast(7);
   document.getElementById('weekKm').textContent = totalKm(week).toFixed(1);
@@ -1446,6 +1618,7 @@ function renderStats() {
 function renderAll() {
   renderHeader();
   renderDashboard();
+  renderStreakTracker();
   renderPlan();
   renderLog();
   renderStats();
@@ -1847,6 +2020,47 @@ document.getElementById('coachRaceplan').addEventListener('click', function() {
   setTimeout(() => showCoachResponse(getRacePlan(), this), 900);
 });
 
+document.getElementById('sendWeeklyReport').addEventListener('click', async function() {
+  const btn = this;
+  btn.textContent = '⏳ Wird gesendet…';
+  btn.disabled = true;
+
+  // Calculate this week's stats
+  const start = localStartDate();
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay() + 1);
+  const weekRuns = runs.filter(r => {
+    const ds = r.date.substring(0,10).split('-');
+    const d = new Date(parseInt(ds[0]), parseInt(ds[1])-1, parseInt(ds[2]));
+    return d >= weekStart;
+  });
+  const totalKm = weekRuns.reduce((s, r) => s + (r.distance || 0), 0).toFixed(1);
+  const longestRun = weekRuns.length ? Math.max(...weekRuns.map(r => r.distance || 0)).toFixed(1) : '0';
+  const avgPaceSec = weekRuns.filter(r => r.timeSec && r.distance)
+    .map(r => r.timeSec / r.distance)
+    .reduce((a, b, _, arr) => a + b / arr.length, 0);
+
+  try {
+    await fetch(WORKER_URL + '/weekly-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        totalKm,
+        runs: weekRuns.length,
+        longestRun,
+        avgPace: avgPaceSec > 0 ? fmtPace(avgPaceSec) : '—',
+        weekNum: weekNumber()
+      })
+    });
+    btn.textContent = '✅ Gesendet!';
+    setTimeout(() => { btn.textContent = '📤 Wochenbericht senden'; btn.disabled = false; }, 3000);
+  } catch(e) {
+    btn.textContent = '❌ Fehler';
+    setTimeout(() => { btn.textContent = '📤 Wochenbericht senden'; btn.disabled = false; }, 3000);
+  }
+});
+
 document.getElementById('coachClose').addEventListener('click', () => {
   document.getElementById('coachResponse').style.display = 'none';
 });
@@ -1908,6 +2122,31 @@ async function openRunDetail(run) {
 
   const hasMap = act.map && act.map.summary_polyline;
 
+  // Build elevation profile from splits
+  const elevData = (act.splits_metric || []).map((s, i) => ({
+    km: i + 1,
+    elev: s.elevation_difference || 0
+  }));
+  let elevHtml = '';
+  if (elevData.length && elevData.some(e => Math.abs(e.elev) > 0.5)) {
+    const maxUp = Math.max(...elevData.map(e => e.elev), 1);
+    const minDown = Math.min(...elevData.map(e => e.elev), -1);
+    const range = Math.max(Math.abs(maxUp), Math.abs(minDown), 1);
+    const bars = elevData.map(e => {
+      const pct = Math.round((Math.abs(e.elev) / range) * 100);
+      const up = e.elev >= 0;
+      return `<div class="elev-bar-wrap" title="km ${e.km}: ${e.elev > 0 ? '+' : ''}${e.elev.toFixed(0)}m">
+        <div class="elev-bar ${up ? 'elev-up' : 'elev-down'}" style="height:${Math.max(4, pct)}%"></div>
+        <div class="elev-label">${e.km}</div>
+      </div>`;
+    }).join('');
+    elevHtml = `<div class="modal-splits" style="border-top:1px solid var(--silver);">
+      <div class="modal-splits-title">Höhenprofil</div>
+      <div class="elev-chart">${bars}</div>
+      <div class="elev-legend"><span style="color:#1e2cff">▲ Aufstieg</span> <span style="color:#ef4444">▼ Abstieg</span></div>
+    </div>`;
+  }
+
   inner.innerHTML = `
     <div class="modal-header">
       <div>
@@ -1932,7 +2171,8 @@ async function openRunDetail(run) {
     <div class="modal-splits">
       <div class="modal-splits-title">Km Splits</div>
       ${splitsHtml}
-    </div>`;
+    </div>
+    ${elevHtml}`;
 
   document.getElementById('modalClose').addEventListener('click', closeRunModal);
 
