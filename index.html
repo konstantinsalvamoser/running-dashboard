@@ -1654,11 +1654,6 @@ function renderStreakTracker() {
       <div class="streak-week-label">${startLabel}–${endLabel}</div>
     </div>`;
   }).join('');
-    return `<div class="streak-week">
-      <div class="streak-days">${dots}</div>
-      <div class="streak-week-label">${label}</div>
-    </div>`;
-  }).join('');
 
   el.innerHTML = `<div class="streak-bar">
     <div class="streak-header">
@@ -2156,7 +2151,7 @@ function getCoachAnalysis() {
 
 function getCoachFeedback() {
   const last = runs.find(r => r.distance > 0);
-  if (!last) return '🏃 No runs logged yet. Log your first run and I'll give you feedback!';
+  if (!last) return "🏃 No runs logged yet. Log your first run and I'll give you feedback!";
 
   const pace = last.timeSec && last.distance ? last.timeSec / last.distance : 0;
   const paceStr = pace ? fmtPace(pace) : '—';
@@ -2305,7 +2300,7 @@ function getCoachAnalysis() {
 
 function getCoachFeedback() {
   const last = runs.find(r => r.distance > 0);
-  if (!last) return '🏃 No runs logged yet. Log your first run and I'll give you feedback!';
+  if (!last) return "🏃 No runs logged yet. Log your first run and I'll give you feedback!";
 
   const pace = last.timeSec && last.distance ? last.timeSec / last.distance : 0;
   const paceStr = pace ? fmtPace(pace) : '—';
