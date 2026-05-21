@@ -1089,14 +1089,29 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   font-weight: 600;
 }
 .week-actual-km {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 8px;
+}
+.week-actual-num {
   font-family: 'Instrument Serif', serif;
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 400;
   line-height: 1;
   color: #22c55e;
   -webkit-text-fill-color: #22c55e;
   letter-spacing: -0.02em;
-  margin-top: 8px;
+  display: block;
+}
+.week-actual-km small {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(34,197,94,0.6);
+  -webkit-text-fill-color: rgba(34,197,94,0.6);
+  display: block;
+  margin-top: 4px;
 }
 </style>
 </head>
@@ -1562,7 +1577,7 @@ function renderWeekRow(wk, current) {
     <div class="week-total">
       <span class="week-total-num">${wk.total}</span>
       <small>km planned · ${wk.note || ''}</small>
-      ${weekActual !== null ? `<div class="week-actual-km">${weekActual} km actual</div>` : ''}
+      ${weekActual !== null ? `<div class="week-actual-km"><span class="week-actual-num">${weekActual}</span><small>km actual</small></div>` : ''}
     </div>
   </div></div>`;
 }
@@ -1590,7 +1605,7 @@ function renderPlan() {
       <div class="week-total">
         <span class="week-total-num">${wk.total}</span>
         <small>km planned · ${wk.note || ''}</small>
-        ${getWeekActualKm(wk.w) !== null ? `<div class="week-actual-km">${getWeekActualKm(wk.w)}<span class="week-actual-unit">km actual</span></div>` : ''}
+        ${getWeekActualKm(wk.w) !== null ? `<div class="week-actual-km"><span class="week-actual-num">${getWeekActualKm(wk.w)}</span><small>km actual</small></div>` : ''}
       </div>
     </div>`).join('');
 }
@@ -1849,7 +1864,7 @@ async function syncStrava() {
     });
     runs.sort((a,b) => b.date.localeCompare(a.date));
     saveRuns(); renderAll();
-    showToast(`✓ ${added} neue Läufe importiert`);
+    showToast(`✓ ${added} neue runs importiert`);
   } catch(e) { showToast('Sync fehlgeschlagen: ' + e.message); }
 }
 
@@ -1885,13 +1900,13 @@ function buildRunSummary() {
   const weekNum = weekNumber();
   const planWeeks = 12;
   const raceDate = meta.raceDate;
-  return `Trainingsdata (letzte ${recent.length} Läufe):
-- Gesamt: ${totalKmVal} km
+  return `Trainingsdata (letzte ${recent.length} runs):
+- Total: ${totalKmVal} km
 - Longest run: ${longestRun} km
 - Average pace: ${fmtPace(avgPace)}/km
 - Aktuelle Trainingswoche: ${weekNum} von ${planWeeks}
 - Wettkampftag: ${raceDate}
-- Letzte Läufe: ${recent.slice(0,5).map(r => `${r.date}: ${r.distance}km (${r.type})`).join(', ')}`;
+- Letzte runs: ${recent.slice(0,5).map(r => `${r.date}: ${r.distance}km (${r.type})`).join(', ')}`;
 }
 
 function showCoachResponse(text, btnEl) {
@@ -1925,7 +1940,7 @@ function showCoachLoading(btnEl) {
 
 function getCoachAnalysis() {
   const recent = runs.filter(r => r.distance > 0);
-  if (!recent.length) return '🏃 Du hast noch keine Läufe eingeloggt. Starte deinen ersten Lauf und komm zurück für eine Analyse!';
+  if (!recent.length) return '🏃 Du hast noch keine runs eingeloggt. Starte deinen ersten run und komm zurück für eine Analyse!';
 
   const totalKmVal = recent.reduce((s, r) => s + (r.distance || 0), 0);
   const weekNum = weekNumber();
@@ -1949,7 +1964,7 @@ function getCoachAnalysis() {
   feedback += `Du befindest dich in der ${form} deiner preparation.
 
 `;
-  feedback += `✅ Since plan start: ${planKm} km in ${planRuns.length} Läufen
+  feedback += `✅ Since plan start: ${planKm} km in ${planRuns.length} runsn
 `;
   feedback += `🏆 Longest run: ${longestRun.toFixed(1)} km
 `;
@@ -1958,7 +1973,7 @@ function getCoachAnalysis() {
 `;
 
   if (longestRun < 10) {
-    feedback += `💡 Fokus: Dein längster Lauf liegt noch unter 10 km. Steigere den Long Run wöchentlich um max. 10% — das ist der wichtigste Baustein für den Halbmarathon.
+    feedback += `💡 Fokus: Dein längster run liegt noch unter 10 km. Steigere den Long Run wöchentlich um max. 10% — das ist der wichtigste Baustein für den Halbmarathon.
 
 `;
   } else if (longestRun < 16) {
@@ -1972,12 +1987,12 @@ function getCoachAnalysis() {
   }
 
   if (weeksLeft <= 3) {
-    feedback += `⚠️ Tapering: Reduziere das Volumen in den letzten 2 Weekn auf 60-70%. Dein Körper braucht jetzt Erholung, nicht mehr km.
+    feedback += `⚠️ Tapering: Reduziere das Volumen in den letzten 2 Weekn auf 60-70%. Dein Körper braucht jetzt recovery, nicht mehr km.
 
 `;
   }
 
-  feedback += `🎯 Next goal: ${weeksLeft > 0 ? `Week ${weekNum + 1} — bleib beim Plan!` : 'Race Day — du bist bereit!'}`;
+  feedback += `🎯 Next goal: ${weeksLeft > 0 ? `Week ${weekNum + 1} — stay on track!` : 'Race Day — you're ready!'}`;
   return feedback;
 }
 
@@ -2006,11 +2021,11 @@ function getCoachFeedback() {
 `;
     }
   } else if (last.type === 'Tempo' || last.type === 'Intervals') {
-    feedback += `🔥 Quality session completed! Nach einem harten Run brauchst du mindestens 48h Erholung bevor der nächste Quality-Run kommt.
+    feedback += `🔥 Quality session completed! Nach einem hard run brauchst du mindestens 48h recovery bevor der nächste Quality-Run kommt.
 
 `;
   } else if (last.type === 'Long') {
-    feedback += `🏅 Long Run erledigt — das ist die wichtigste Einheit der Week! Achte auf gute Erholung: viel trinken, ausreichend schlafen, leichtes Stretching.
+    feedback += `🏅 Long Run erledigt — das ist die wichtigste Einheit der Week! Achte auf gute recovery: viel trinken, ausreichend schlafen, leichtes Stretching.
 
 `;
   }
@@ -2022,7 +2037,7 @@ function getCoachFeedback() {
   }
 
   const next = runs.length > 1 ? runs[1] : null;
-  feedback += `⏭ For your next run: Wärm dich 5-10 Min auf, starte langsam und steigere das Tempo erst nach dem ersten Kilometer.`;
+  feedback += `⏭ For your next run: Warm up for 5-10 Min auf, starte langsam und steigere das Tempo erst nach dem ersten Kilometer.`;
   return feedback;
 }
 
@@ -2033,11 +2048,11 @@ function getMotivation() {
   const weeksLeft = Math.max(0, 12 - weekNum);
 
   const sprueche = [
-    `🔥 "${totalKm} km liegen hinter dir. Jeder einzelne davon hat dich stärker gemacht. Der Halbmarathon wartet — und du bist bereit."`,
+    `🔥 "${totalKm} km liegen hinter dir. Jeder einzelne davon hat dich stärker gemacht. Der Halbmarathon wartet — und you're ready."`,
     `💪 "Week ${weekNum} von 12. Du bist ${Math.round((weekNum/12)*100)}% des Weges. Die härteste Meile ist die, die du nicht läufst."`,
     `🏃 "In ${weeksLeft} Weekn stehst du an der Startlinie. Alles, was du heute tust, zählt. Zieh die Schuhe an."`,
     `⚡ "Dein Körper hat ${totalKm} km überlebt. Er weiß, wie es geht. Vertrau ihm — und lauf."`,
-    `🌅 "Der beste Lauf ist der nächste. Jeder Schritt bringt dich näher. Nicht morgen — heute."`,
+    `🌅 "Der beste run ist der nächste. Jeder Schritt bringt dich näher. Nicht morgen — heute."`,
     `🏆 "Du trainierst nicht, um den Halbmarathon zu überleben. Du trainierst, um ihn zu beherrschen."`,
   ];
   return sprueche[Math.floor(Math.random() * sprueche.length)] + `
@@ -2056,23 +2071,23 @@ function getRacePlan() {
   let plan = `🏁 Race day strategy — Halbmarathon
 
 `;
-  plan += `🎯 Zielpace: ${fmtPace(racePace)}/km → Zielzeit: ${finishH}:${String(finishM).padStart(2,'0')} h
+  plan += `🎯 target pace: ${fmtPace(racePace)}/km → target time: ${finishH}:${String(finishM).padStart(2,'0')} h
 
 `;
-  plan += `📋 Pacing-Strategie:
+  plan += `📋 pacing strategy:
 `;
-  plan += `• km 1-3: Langsam starten! 10-15 Sek/km LANGSAMER als Zielpace. Das Feld reißt mit — nicht mitreißen lassen.
+  plan += `• km 1-3: Langsam starten! 10-15 Sek/km LANGSAMER als target pace. The crowd pulls you along — nicht get pulled along.
 `;
-  plan += `• km 4-10: Zielpace aufnehmen. Rhythmus finden, gleichmäßig atmen.
+  plan += `• km 4-10: target pace aufnehmen. find your rhythm, breathe evenly.
 `;
-  plan += `• km 11-16: Konstanz ist alles. Wenn es schwer wird — ein Kilometer nach dem anderen.
+  plan += `• km 11-16: Consistency is everything. Wenn es schwer wird — ein Kilometer nach dem anderen.
 `;
-  plan += `• km 17-19: Jetzt zählt der Kopf. "Nur noch X km" — runterbrechen in kleine Einheiten.
+  plan += `• km 17-19: Now it's all mental. "Nur noch X km" — runterbrechen in kleine Einheiten.
 `;
-  plan += `• km 20-21.1: Alles rauslassen. Du hast trainiert für diesen Moment.
+  plan += `• km 20-21.1: Give it everything. Du hast trainiert für diesen Moment.
 
 `;
-  plan += `💧 Verpflegung:
+  plan += `💧 Nutrition:
 `;
   plan += `• Alle 5 km trinken, auch wenn du (noch) keinen Durst hast
 `;
@@ -2088,9 +2103,9 @@ function getRacePlan() {
   plan += `• Mantras vorbereiten für schwierige Momente
 
 `;
-  plan += `⏰ Race Morning: Aufstehen 3h vor Start, leichtes Frühstück, 30 Min Aufwärmen.
+  plan += `⏰ Race morning: Aufstehen 3h vor Start, light breakfast, 30 Min warm up.
 
-Du schaffst das! 🏃‍♂️`;
+You've got this! 🏃‍♂️`;
   return plan;
 }
 
