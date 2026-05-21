@@ -1244,21 +1244,24 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   text-align: center;
 }
 
-.streak-week.streak-active .streak-days {
-  background: rgba(30,44,255,0.06);
-  border-radius: 4px;
-  padding: 3px;
-  margin: -3px;
+.streak-week.streak-active {
+  border: 2px solid #fc4c02;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: #fff;
 }
 .streak-week.streak-active .streak-week-label {
-  color: var(--rust);
-  font-weight: 600;
+  color: #fc4c02;
+  font-weight: 700;
 }
-.streak-week.streak-current .streak-days {
-  background: rgba(30,44,255,0.1);
-  border-radius: 4px;
-  padding: 3px;
-  margin: -3px;
+.streak-week.streak-current {
+  border: 2px solid #fc4c02;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: #fff;
+}
+.streak-week.streak-current .streak-week-label {
+  font-weight: 700;
 }
 .streak-week-label {
   font-family: 'JetBrains Mono', monospace;
