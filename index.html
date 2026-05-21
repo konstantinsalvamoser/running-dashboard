@@ -1623,6 +1623,8 @@ function renderStreakTracker() {
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 
   // Build 8 weeks of day dots
+  const isMobile = window.innerWidth <= 700;
+  const numWeeks = isMobile ? 4 : 8;
   const dayOfWeekToday = today.getDay() === 0 ? 6 : today.getDay() - 1;
   const weeksHtml = Array.from({length: numWeeks}, (_, wi) => {
     const absWi = wi + (8 - numWeeks);
