@@ -796,7 +796,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 /* ── KI COACH ── */
 .coach-hero {
   text-align: center;
-  padding: 48px 24px 40px;
+  padding: 28px 24px 24px;
   border-bottom: 1px solid var(--silver-2);
   margin-bottom: 40px;
 }
@@ -809,11 +809,12 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 }
 .coach-hero-title {
   font-family: 'Instrument Serif', serif;
-  font-size: clamp(32px, 5vw, 52px);
+  font-size: clamp(22px, 3vw, 36px);
   font-weight: 400;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   line-height: 1.1;
   margin-bottom: 12px;
+  white-space: nowrap;
 }
 .coach-hero-title em { font-style: italic; color: var(--rust); }
 .coach-hero-sub {
@@ -944,8 +945,9 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   display: flex;
   align-items: flex-end;
   gap: 3px;
-  height: 80px;
-  padding-bottom: 20px;
+  height: 100px;
+  padding-bottom: 16px;
+  padding-top: 24px;
   position: relative;
 }
 .elev-bar-wrap {
@@ -956,6 +958,18 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   justify-content: flex-end;
   height: 100%;
   cursor: default;
+  position: relative;
+}
+.elev-meter-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  color: var(--ink);
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-weight: 500;
 }
 .elev-bar {
   width: 100%;
@@ -1031,7 +1045,11 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   align-items: center;
   gap: 4px;
   min-width: 40px;
+  padding-right: 8px;
+  border-right: 1px solid var(--silver);
+  margin-right: 8px;
 }
+.streak-week:last-child { border-right: none; margin-right: 0; padding-right: 0; }
 .streak-week-label {
   font-family: 'JetBrains Mono', monospace;
   font-size: 8px;
@@ -1205,7 +1223,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   <section class="panel" id="panel-coach">
     <div class="coach-hero">
       <div class="coach-hero-label">KI COACH</div>
-      <h2 class="coach-hero-title">Dein persönlicher<br><em>Trainings-Coach</em></h2>
+      <h2 class="coach-hero-title">Dein persönlicher <em>Trainings-Coach</em></h2>
       <p class="coach-hero-sub">Analyse, Feedback und Motivation — powered by AI</p>
     </div>
 
@@ -1380,18 +1398,24 @@ function renderStreakTracker() {
     else if (w > 0) break;
   }
 
+  // Today as YYYY-MM-DD in local time
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
   // Build 8 weeks of day dots
+  const dayNames = ['Mo','Di','Mi','Do','Fr','Sa','So'];
   const weeksHtml = Array.from({length: 8}, (_, wi) => {
     const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay() + 1 - (7 - wi) * 7);
+    // Monday-based week
+    const dayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    weekStart.setDate(today.getDate() - dayOfWeek - (7 - wi) * 7);
     const label = weekStart.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
     const dots = Array.from({length: 7}, (_, di) => {
       const dd = new Date(weekStart);
       dd.setDate(weekStart.getDate() + di);
       const ds = dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
-      const isToday = ds === (today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0'));
+      const isToday = ds === todayStr;
       const hasRun = runDates.has(ds);
-      return `<div class="streak-day ${hasRun ? 'has-run' : ''} ${isToday ? 'today' : ''}" title="${ds}${hasRun ? ' 🏃' : ''}"></div>`;
+      return `<div class="streak-day ${hasRun ? 'has-run' : ''} ${isToday ? 'today' : ''}" title="${dayNames[di]} ${ds}${hasRun ? ' 🏃' : ''}"></div>`;
     }).join('');
     return `<div class="streak-week">
       <div class="streak-days">${dots}</div>
@@ -2135,7 +2159,9 @@ async function openRunDetail(run) {
     const bars = elevData.map(e => {
       const pct = Math.round((Math.abs(e.elev) / range) * 100);
       const up = e.elev >= 0;
-      return `<div class="elev-bar-wrap" title="km ${e.km}: ${e.elev > 0 ? '+' : ''}${e.elev.toFixed(0)}m">
+      const mLabel = Math.abs(e.elev) >= 1 ? `${up ? '+' : ''}${e.elev.toFixed(0)}m` : '';
+      return `<div class="elev-bar-wrap">
+        ${mLabel ? `<div class="elev-meter-label" style="color:${up ? '#1e2cff' : '#ef4444'}">${mLabel}</div>` : '<div class="elev-meter-label"></div>'}
         <div class="elev-bar ${up ? 'elev-up' : 'elev-down'}" style="height:${Math.max(4, pct)}%"></div>
         <div class="elev-label">${e.km}</div>
       </div>`;
