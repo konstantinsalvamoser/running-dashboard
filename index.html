@@ -166,6 +166,10 @@
   --line: #0a0a0f;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  overflow-x: clip;
+  max-width: 100vw;
+}
 html, body {
   background: var(--paper) !important;
   color: var(--ink) !important;
@@ -174,11 +178,6 @@ html, body {
   line-height: 1.5;
   -webkit-text-fill-color: var(--ink);
   letter-spacing: -0.01em;
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-*, *::before, *::after {
-  max-width: 100%;
 }
 input, select, textarea, button { color-scheme: light; }
 body::before {
@@ -620,10 +619,10 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 
 /* ── MOBILE ── */
 @media (max-width: 700px) {
-  /* Prevent ALL horizontal scroll */
-  html, body { overflow-x: hidden !important; max-width: 100vw; }
-  .wrap { overflow-x: hidden; }
-  .panel { overflow-x: hidden; }
+  /* Prevent horizontal scroll without breaking sticky */
+  html { overflow-x: clip; }
+  .wrap { overflow-x: clip; max-width: 100%; }
+  .panel { overflow-x: clip; }
   .run-form { max-width: 100%; }
 
   /* Header: logo left, title right — no meta/strava in top bar */
@@ -1244,6 +1243,31 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   margin-top: 4px;
   text-align: center;
 }
+
+.streak-week.streak-active .streak-days {
+  background: rgba(30,44,255,0.06);
+  border-radius: 4px;
+  padding: 3px;
+  margin: -3px;
+}
+.streak-week.streak-active .streak-week-label {
+  color: var(--rust);
+  font-weight: 600;
+}
+.streak-week.streak-current .streak-days {
+  background: rgba(30,44,255,0.1);
+  border-radius: 4px;
+  padding: 3px;
+  margin: -3px;
+}
+.streak-week-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  margin-top: 6px;
+}
 </style>
 </head>
 <body>
@@ -1300,7 +1324,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
     <div id="streakTracker" style="margin-bottom:32px;"></div>
     <div class="ornament">This week's plan</div>
     <div id="thisWeekPlan"></div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;margin-top:32px;">
       <button id="sendWeeklyReport" style="background:none;border:1px solid var(--silver-2);border-radius:4px;padding:8px 16px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;color:var(--ink-soft);transition:all 0.2s;">
         📤 SEND WEEKLY REPORT
       </button>
@@ -1599,24 +1623,37 @@ function renderStreakTracker() {
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 
   // Build 8 weeks of day dots
-  const dayNames = ['Mo','Di','Mi','Do','Fr','Sa','So'];
-  const isMobile = window.innerWidth <= 700;
-  const numWeeks = isMobile ? 4 : 8;
+  const dayOfWeekToday = today.getDay() === 0 ? 6 : today.getDay() - 1;
   const weeksHtml = Array.from({length: numWeeks}, (_, wi) => {
-    wi = wi + (8 - numWeeks); // always show most recent weeks
+    const absWi = wi + (8 - numWeeks);
     const weekStart = new Date(today);
-    // Monday-based week
-    const dayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
-    weekStart.setDate(today.getDate() - dayOfWeek - (8 - 1 - wi) * 7);
-    const label = weekStart.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+    weekStart.setDate(today.getDate() - dayOfWeekToday - (8 - 1 - absWi) * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const fmt = d => String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.';
+    const startLabel = fmt(weekStart);
+    const endLabel = fmt(weekEnd);
+
+    let weekRunCount = 0;
     const dots = Array.from({length: 7}, (_, di) => {
       const dd = new Date(weekStart);
       dd.setDate(weekStart.getDate() + di);
       const ds = dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
       const isToday = ds === todayStr;
       const hasRun = runDates.has(ds);
-      return `<div class="streak-day ${hasRun ? 'has-run' : ''} ${isToday ? 'today' : ''}" title="${dayNames[di]} ${ds}${hasRun ? ' 🏃' : ''}"></div>`;
+      if (hasRun) weekRunCount++;
+      return `<div class="streak-day ${hasRun ? 'has-run' : ''} ${isToday ? 'today' : ''}"></div>`;
     }).join('');
+
+    const isStreakWeek = weekRunCount >= 2;
+    const isCurrentWeek = absWi === 7;
+
+    return `<div class="streak-week ${isStreakWeek ? 'streak-active' : ''} ${isCurrentWeek ? 'streak-current' : ''}">
+      <div class="streak-days">${dots}</div>
+      <div class="streak-week-label">${startLabel}–${endLabel}</div>
+    </div>`;
+  }).join('');
     return `<div class="streak-week">
       <div class="streak-days">${dots}</div>
       <div class="streak-week-label">${label}</div>
