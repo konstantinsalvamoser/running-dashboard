@@ -1343,6 +1343,29 @@ function fmtDateLong(d) {
 }
 // Day 1 = Monday (offset 0), Day 2 = Wednesday (offset 2), Day 3 = Saturday (offset 5)
 const DAY_OFFSETS = [0, 2, 5];
+
+// Get actual run km for a planned day (±1 day window)
+function getActualKm(weekNum, dayIdx) {
+  const start = localStartDate();
+  const plannedDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[dayIdx]);
+  const p0 = dateToStr(addDays(plannedDate, -1));
+  const p1 = dateToStr(plannedDate);
+  const p2 = dateToStr(addDays(plannedDate, 1));
+  const match = runs.find(r => {
+    const rs = r.date.substring(0, 10);
+    return (rs === p0 || rs === p1 || rs === p2) && r.distance > 0;
+  });
+  return match ? match.distance : null;
+}
+
+// Get total actual km for a week
+function getWeekActualKm(weekNum) {
+  const km = [0,1,2].reduce((sum, di) => {
+    const actual = getActualKm(weekNum, di);
+    return sum + (actual || 0);
+  }, 0);
+  return km > 0 ? km.toFixed(1) : null;
+}
 function dateForWeekDay(weekNum, dayIdx) {
   return addDays(localStartDate(), (weekNum - 1) * 7 + DAY_OFFSETS[dayIdx]);
 }
@@ -1545,30 +1568,7 @@ function renderWeekRow(wk, current) {
 
 function renderPlan() {
   const curWeek = weekNumber();
-  // Get actual run km for a planned day (±1 day window)
-function getActualKm(weekNum, dayIdx) {
-  const start = localStartDate();
-  const plannedDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[dayIdx]);
-  const p0 = dateToStr(addDays(plannedDate, -1));
-  const p1 = dateToStr(plannedDate);
-  const p2 = dateToStr(addDays(plannedDate, 1));
-  const match = runs.find(r => {
-    const rs = r.date.substring(0, 10);
-    return (rs === p0 || rs === p1 || rs === p2) && r.distance > 0;
-  });
-  return match ? match.distance : null;
-}
-
-// Get total actual km for a week
-function getWeekActualKm(weekNum) {
-  const km = [0,1,2].reduce((sum, di) => {
-    const actual = getActualKm(weekNum, di);
-    return sum + (actual || 0);
-  }, 0);
-  return km > 0 ? km.toFixed(1) : null;
-}
-
-document.getElementById('planGrid').innerHTML = PLAN.map(wk => `
+  document.getElementById('planGrid').innerHTML = PLAN.map(wk => `
     <div class="week-row ${wk.w === curWeek ? 'current' : ''}">
       <div class="week-num">Week<strong>${wk.w}</strong></div>
       <div class="day-block">
