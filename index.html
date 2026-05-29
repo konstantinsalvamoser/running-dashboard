@@ -1792,9 +1792,9 @@ function renderTrainingIntelligence() {
   });
 
   const ranToday = recentRunDates.some(d => d.getTime() === nowLocal.getTime());
-  const yesterday = new Date(nowLocal); yesterday.setDate(nowLocal.getDate() - 1);
+  const yesterday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate() - 1);
   const ranYesterday = recentRunDates.some(d => d.getTime() === yesterday.getTime());
-  const dayBeforeYesterday = new Date(nowLocal); dayBeforeYesterday.setDate(nowLocal.getDate() - 2);
+  const dayBeforeYesterday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate() - 2);
   const ranDayBefore = recentRunDates.some(d => d.getTime() === dayBeforeYesterday.getTime());
 
   // Count consecutive run days ending today/yesterday
