@@ -1835,11 +1835,14 @@ function renderTrainingIntelligence() {
     } else if (ranToday) {
       icon = '😴'; title = 'Done for today';
       sub = "You've already run today — rest up and recover well for tomorrow.";
+    } else if (ranYesterday && ranDayBefore) {
+      icon = '😴'; title = 'Rest day recommended';
+      sub = 'You ran the last 2 days — today should be a rest day. Recovery is where fitness is built.';
     } else if (ranYesterday && isHard) {
       icon = '😴'; title = 'Recovery day';
       sub = `Yesterday was a ${lastRun.type.toLowerCase()} — give your body 48h before the next hard effort.`;
     } else if (ranYesterday) {
-      icon = '🟢'; title = 'Light day';
+      icon = '🟢'; title = 'Light day optional';
       sub = 'You ran yesterday — if running today, keep it very easy (Zone 2 only).';
     } else if (daysSince >= 3) {
       icon = '⚡'; title = `${daysSince} days off`;
