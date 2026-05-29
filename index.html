@@ -1785,27 +1785,64 @@ function renderTrainingIntelligence() {
   const todayStr = now.toISOString().split('T')[0];
 
   // ── 1. RECOVERY TIME ──
+  const nowLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const recentRunDates = runs.filter(r => r.distance > 0).map(r => {
+    const ds = r.date.substring(0,10).split('-');
+    return new Date(parseInt(ds[0]), parseInt(ds[1])-1, parseInt(ds[2]));
+  });
+
+  const ranToday = recentRunDates.some(d => d.getTime() === nowLocal.getTime());
+  const yesterday = new Date(nowLocal); yesterday.setDate(nowLocal.getDate() - 1);
+  const ranYesterday = recentRunDates.some(d => d.getTime() === yesterday.getTime());
+  const dayBeforeYesterday = new Date(nowLocal); dayBeforeYesterday.setDate(nowLocal.getDate() - 2);
+  const ranDayBefore = recentRunDates.some(d => d.getTime() === dayBeforeYesterday.getTime());
+
+  // Count consecutive run days ending today/yesterday
+  let consecutiveDays = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(nowLocal); d.setDate(nowLocal.getDate() - i);
+    if (recentRunDates.some(rd => rd.getTime() === d.getTime())) consecutiveDays++;
+    else break;
+  }
+
   const lastRun = runs.find(r => r.distance > 0);
   let recoveryCard = '';
   if (lastRun) {
-    const lastDate = new Date(lastRun.date + 'T00:00:00');
-    const daysSince = Math.floor((now - lastDate) / 86400000);
-    const lastPace = lastRun.timeSec && lastRun.distance ? lastRun.timeSec / lastRun.distance : 0;
+    const lastDs = lastRun.date.substring(0,10).split('-');
+    const lastDate = new Date(parseInt(lastDs[0]), parseInt(lastDs[1])-1, parseInt(lastDs[2]));
+    const daysSince = Math.round((nowLocal - lastDate) / 86400000);
     const isHard = lastRun.type === 'Tempo' || lastRun.type === 'Intervals' || lastRun.type === 'Long';
-    const recommendedRest = isHard ? 2 : 1;
-    const readyToRun = daysSince >= recommendedRest;
-    const color = readyToRun ? 'green' : 'yellow';
-    const statusText = readyToRun
-      ? daysSince === 0 ? 'You ran today' : `${daysSince}d since last run — ready!`
-      : `Rest ${recommendedRest - daysSince} more day${recommendedRest - daysSince > 1 ? 's' : ''}`;
-    const advice = readyToRun
-      ? isHard ? 'Keep it easy today — your legs need Zone 2.' : 'Good to go — stick to the plan!'
-      : `Last run was ${lastRun.type.toLowerCase()} — recovery time is training too.`;
+
+    // Need rest if: ran 2+ consecutive days, or yesterday was hard
+    const needsRest = consecutiveDays >= 2 || (ranYesterday && isHard) || (ranToday && ranYesterday);
+    const color = needsRest ? 'yellow' : daysSince === 0 ? 'blue' : 'green';
+
+    let icon, title, sub;
+    if (ranToday && ranYesterday) {
+      icon = '😴'; title = 'Rest day recommended';
+      sub = `${consecutiveDays} days in a row — your muscles rebuild during rest, not during runs.`;
+    } else if (ranYesterday && isHard) {
+      icon = '😴'; title = 'Recovery day';
+      sub = `Yesterday was a ${lastRun.type.toLowerCase()} — give your body 48h before the next hard effort.`;
+    } else if (ranToday) {
+      icon = '✅'; title = 'Ran today';
+      sub = 'Great work! Rest or easy stretching for the remainder of the day.';
+    } else if (daysSince === 1) {
+      icon = '🟢'; title = 'Ready to run';
+      sub = 'Rested since yesterday — good to go today!';
+    } else if (daysSince >= 3) {
+      icon = '⚡'; title = `${daysSince} days off`;
+      sub = "Your legs are fresh — time to get moving!";
+    } else {
+      icon = '✅'; title = 'Ready to run';
+      sub = 'Recovery looks good — stick to the plan.';
+    }
+
     recoveryCard = `<div class="intel-card ${color}">
-      <div class="intel-card-icon">${readyToRun ? '✅' : '😴'}</div>
+      <div class="intel-card-icon">${icon}</div>
       <div class="intel-card-title">Recovery status</div>
-      <div class="intel-card-value">${readyToRun ? 'Ready' : 'Resting'}</div>
-      <div class="intel-card-sub">${statusText}<br>${advice}</div>
+      <div class="intel-card-value">${title}</div>
+      <div class="intel-card-sub">${sub}</div>
     </div>`;
   }
 
@@ -1969,15 +2006,15 @@ function renderStreakTracker() {
 }
 
 function renderDashboard() {
-  // Current calendar week Mon-Sun
+  // Current calendar week Mon-Sun (local time)
   const now = new Date();
   const todayDow = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - todayDow);
-  thisMonday.setHours(0,0,0,0);
+  const thisMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - todayDow);
+  const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const week = runs.filter(r => {
-    const d = new Date(r.date + 'T00:00:00');
-    return d >= thisMonday && d <= now;
+    const ds = r.date.substring(0, 10).split('-');
+    const d = new Date(parseInt(ds[0]), parseInt(ds[1])-1, parseInt(ds[2]));
+    return d >= thisMonday && d <= todayLocal;
   });
   document.getElementById('weekKm').textContent = totalKm(week).toFixed(1);
   document.getElementById('weekPace').textContent = fmtPace(avgPace(week));
