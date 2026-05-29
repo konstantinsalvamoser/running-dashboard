@@ -1314,6 +1314,57 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 .injury-meter-fill { height:100%;border-radius:6px;transition:width 0.8s ease; }
 .injury-label { font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em; }
 .injury-tips { margin-top:12px;font-size:13px;color:var(--ink-soft);line-height:1.6; }
+
+/* ── TRAINING INTELLIGENCE ── */
+.intel-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.intel-card {
+  border: 1px solid var(--silver-2);
+  border-radius: 4px;
+  padding: 16px 18px;
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+.intel-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.intel-card.green::before { background: #22c55e; }
+.intel-card.yellow::before { background: #f59e0b; }
+.intel-card.red::before { background: #ef4444; }
+.intel-card.blue::before { background: #1e2cff; }
+.intel-card-icon { font-size: 22px; margin-bottom: 8px; }
+.intel-card-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.intel-card-value {
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.intel-card-sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+@media (max-width: 600px) {
+  .intel-cards { grid-template-columns: 1fr; gap: 8px; }
+}
 </style>
 </head>
 <body>
@@ -1368,6 +1419,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
       </div>
     </div>
     <div id="streakTracker" style="margin-bottom:32px;"></div>
+    <div id="trainingIntelligence"></div>
     <div class="ornament">This week's plan</div>
     <div id="thisWeekPlan"></div>
     <div style="display:flex;justify-content:flex-end;margin-bottom:16px;margin-top:32px;">
@@ -1579,26 +1631,78 @@ function fmtDateLong(d) {
 // Day 1 = Monday (offset 0), Day 2 = Wednesday (offset 2), Day 3 = Saturday (offset 5)
 const DAY_OFFSETS = [0, 2, 5];
 
-// Get actual run km for a planned day (±1 day window)
+// Smart matching: find best run for a planned session considering date AND distance
 function getActualKm(weekNum, dayIdx) {
   const start = localStartDate();
   const plannedDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[dayIdx]);
-  const p0 = dateToStr(addDays(plannedDate, -1));
-  const p1 = dateToStr(plannedDate);
-  const p2 = dateToStr(addDays(plannedDate, 1));
-  const match = runs.find(r => {
+  const plannedKm = parsePlanKm(weekNum, dayIdx);
+
+  // Get all unmatched runs within the week window (Mon-Sun)
+  const weekStart = addDays(start, (weekNum - 1) * 7);
+  const weekEnd = addDays(weekStart, 6);
+  const weekStr0 = dateToStr(weekStart);
+  const weekStr6 = dateToStr(weekEnd);
+
+  // Candidate runs: within the week
+  const candidates = runs.filter(r => {
     const rs = r.date.substring(0, 10);
-    return (rs === p0 || rs === p1 || rs === p2) && r.distance > 0;
+    return rs >= weekStr0 && rs <= weekStr6 && r.distance > 0;
   });
-  return match ? match.distance : null;
+
+  if (!candidates.length) return null;
+
+  // Score each candidate: date proximity + distance similarity
+  const plannedTime = plannedDate.getTime();
+  const scored = candidates.map(r => {
+    const rDate = new Date(r.date + 'T00:00:00');
+    const dayDiff = Math.abs((rDate.getTime() - plannedTime) / 86400000);
+    const distDiff = plannedKm > 0 ? Math.abs(r.distance - plannedKm) / plannedKm : 0;
+    // Lower score = better match. Day diff weighted 2x, dist diff 1x
+    const score = dayDiff * 2 + distDiff;
+    return { run: r, score, dayDiff };
+  }).sort((a, b) => a.score - b.score);
+
+  // Only match if within 3 days AND not already claimed by a closer planned day
+  const best = scored[0];
+  if (!best || best.dayDiff > 3) return null;
+
+  // Check if another planned day in this week has a closer claim
+  const otherDays = [0, 1, 2].filter(d => d !== dayIdx);
+  for (const od of otherDays) {
+    const otherDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[od]);
+    const otherTime = otherDate.getTime();
+    const otherDayDiff = Math.abs((new Date(best.run.date + 'T00:00:00').getTime() - otherTime) / 86400000);
+    if (otherDayDiff < best.dayDiff) {
+      // The other planned day is closer to this run — skip
+      return null;
+    }
+  }
+
+  return best.run.distance;
 }
 
-// Get total actual km for a week
+// Parse planned km from PLAN for a given week/day
+function parsePlanKm(weekNum, dayIdx) {
+  const wk = PLAN[weekNum - 1];
+  if (!wk) return 0;
+  const text = [wk.d1, wk.d2, wk.d3][dayIdx] || '';
+  const match = text.match(/(\d+(?:\.\d+)?)K/i);
+  return match ? parseFloat(match[1]) : 0;
+}
+
+// Get total actual km for a week (avoid double-counting)
 function getWeekActualKm(weekNum) {
-  const km = [0,1,2].reduce((sum, di) => {
-    const actual = getActualKm(weekNum, di);
-    return sum + (actual || 0);
-  }, 0);
+  const start = localStartDate();
+  const weekStart = addDays(start, (weekNum - 1) * 7);
+  const weekEnd = addDays(weekStart, 6);
+  const weekStr0 = dateToStr(weekStart);
+  const weekStr6 = dateToStr(weekEnd);
+
+  const weekRuns = runs.filter(r => {
+    const rs = r.date.substring(0, 10);
+    return rs >= weekStr0 && rs <= weekStr6 && r.distance > 0;
+  });
+  const km = weekRuns.reduce((s, r) => s + r.distance, 0);
   return km > 0 ? km.toFixed(1) : null;
 }
 function dateForWeekDay(weekNum, dayIdx) {
@@ -1657,6 +1761,123 @@ function renderHeader() {
   document.getElementById('dateToday').textContent = new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'long', year:'numeric'});
   document.getElementById('weekToday').textContent = weekNumber();
   document.getElementById('raceDay').textContent = raceDay().toLocaleDateString('en-GB', {day:'2-digit', month:'short'});
+}
+
+function renderTrainingIntelligence() {
+  const el = document.getElementById('trainingIntelligence');
+  if (!el || !runs.length) { if(el) el.innerHTML=''; return; }
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  // ── 1. RECOVERY TIME ──
+  const lastRun = runs.find(r => r.distance > 0);
+  let recoveryCard = '';
+  if (lastRun) {
+    const lastDate = new Date(lastRun.date + 'T00:00:00');
+    const daysSince = Math.floor((now - lastDate) / 86400000);
+    const lastPace = lastRun.timeSec && lastRun.distance ? lastRun.timeSec / lastRun.distance : 0;
+    const isHard = lastRun.type === 'Tempo' || lastRun.type === 'Intervals' || lastRun.type === 'Long';
+    const recommendedRest = isHard ? 2 : 1;
+    const readyToRun = daysSince >= recommendedRest;
+    const color = readyToRun ? 'green' : 'yellow';
+    const statusText = readyToRun
+      ? daysSince === 0 ? 'You ran today' : `${daysSince}d since last run — ready!`
+      : `Rest ${recommendedRest - daysSince} more day${recommendedRest - daysSince > 1 ? 's' : ''}`;
+    const advice = readyToRun
+      ? isHard ? 'Keep it easy today — your legs need Zone 2.' : 'Good to go — stick to the plan!'
+      : `Last run was ${lastRun.type.toLowerCase()} — recovery time is training too.`;
+    recoveryCard = `<div class="intel-card ${color}">
+      <div class="intel-card-icon">${readyToRun ? '✅' : '😴'}</div>
+      <div class="intel-card-title">Recovery status</div>
+      <div class="intel-card-value">${readyToRun ? 'Ready' : 'Resting'}</div>
+      <div class="intel-card-sub">${statusText}<br>${advice}</div>
+    </div>`;
+  }
+
+  // ── 2. PACE RECOMMENDATION ──
+  const easyRuns = runs.filter(r => r.type === 'Easy' && r.timeSec && r.distance).slice(0, 10);
+  let paceCard = '';
+  if (easyRuns.length >= 2) {
+    const avgEasyPace = easyRuns.reduce((s,r) => s + r.timeSec/r.distance, 0) / easyRuns.length;
+    const recentEasy = easyRuns.slice(0,3);
+    const recentAvg = recentEasy.reduce((s,r) => s + r.timeSec/r.distance, 0) / recentEasy.length;
+    const trend = recentAvg < avgEasyPace ? 'faster' : recentAvg > avgEasyPace + 10 ? 'slower' : 'steady';
+
+    const todayPlan = (() => {
+      const wk = weekNumber();
+      for (let di = 0; di < 3; di++) {
+        const planned = addDays(localStartDate(), (wk-1)*7 + DAY_OFFSETS[di]);
+        const diff = Math.abs(planned - now) / 86400000;
+        if (diff <= 1) return PLAN[wk-1];
+      }
+      return null;
+    })();
+
+    const recommendedPace = todayPlan
+      ? (todayPlan.d1.includes('Easy') || todayPlan.d3.includes('Long'))
+        ? fmtPace(avgEasyPace + 15) + '–' + fmtPace(avgEasyPace + 30)
+        : fmtPace(avgEasyPace - 20) + '–' + fmtPace(avgEasyPace)
+      : fmtPace(avgEasyPace + 10) + '–' + fmtPace(avgEasyPace + 25);
+
+    paceCard = `<div class="intel-card blue">
+      <div class="intel-card-icon">⏱</div>
+      <div class="intel-card-title">Today's pace target</div>
+      <div class="intel-card-value">${recommendedPace}</div>
+      <div class="intel-card-sub">Based on your avg easy pace ${fmtPace(avgEasyPace)}/km<br>Trend: ${trend} recently</div>
+    </div>`;
+  } else {
+    paceCard = `<div class="intel-card blue">
+      <div class="intel-card-icon">⏱</div>
+      <div class="intel-card-title">Today's pace target</div>
+      <div class="intel-card-value">Log more runs</div>
+      <div class="intel-card-sub">Need at least 2 easy runs to calculate your pace target.</div>
+    </div>`;
+  }
+
+  // ── 3. TAPER WARNING ──
+  const weekNum = weekNumber();
+  const weeksLeft = 12 - weekNum;
+  let taperCard = '';
+  const last7km = runs.filter(r => { const d=new Date(r.date); return (now-d)/86400000 <= 7; })
+    .reduce((s,r) => s+(r.distance||0), 0);
+  const prev7km = runs.filter(r => { const d=new Date(r.date); const days=(now-d)/86400000; return days>7&&days<=14; })
+    .reduce((s,r) => s+(r.distance||0), 0);
+
+  if (weeksLeft <= 2) {
+    const tooMuch = last7km > prev7km * 0.75;
+    taperCard = `<div class="intel-card ${tooMuch ? 'yellow' : 'green'}">
+      <div class="intel-card-icon">${tooMuch ? '⚠️' : '🎯'}</div>
+      <div class="intel-card-title">Taper phase</div>
+      <div class="intel-card-value">${weeksLeft === 1 ? 'Race week!' : '2 weeks out'}</div>
+      <div class="intel-card-sub">${tooMuch
+        ? `Running ${last7km.toFixed(0)}km this week — reduce to ${(prev7km*0.6).toFixed(0)}km. Trust the taper!`
+        : `${last7km.toFixed(0)}km this week — perfect taper volume. Legs are charging up! 🔋`
+      }</div>
+    </div>`;
+  } else if (weeksLeft <= 4) {
+    const increase = prev7km > 0 ? ((last7km - prev7km) / prev7km * 100) : 0;
+    const tooFast = increase > 15;
+    taperCard = `<div class="intel-card ${tooFast ? 'red' : 'green'}">
+      <div class="intel-card-icon">${tooFast ? '🚨' : '📈'}</div>
+      <div class="intel-card-title">Volume check</div>
+      <div class="intel-card-value">${last7km.toFixed(0)} km</div>
+      <div class="intel-card-sub">${tooFast
+        ? `+${increase.toFixed(0)}% vs last week — too much! Stay within 10% increase.`
+        : `${increase > 0 ? '+' : ''}${increase.toFixed(0)}% vs last week — good progression.`
+      }<br>${weeksLeft} weeks to race day.</div>
+    </div>`;
+  } else {
+    const nextLong = PLAN[weekNum] ? PLAN[weekNum].d3 : '—';
+    taperCard = `<div class="intel-card green">
+      <div class="intel-card-icon">🏗</div>
+      <div class="intel-card-title">Build phase</div>
+      <div class="intel-card-value">${weeksLeft} weeks left</div>
+      <div class="intel-card-sub">Next long run: ${nextLong}<br>Stay consistent — fitness compounds!</div>
+    </div>`;
+  }
+
+  el.innerHTML = `<div class="intel-cards">${recoveryCard}${paceCard}${taperCard}</div>`;
 }
 
 function renderStreakTracker() {
@@ -1771,16 +1992,7 @@ function dateToStr(d) {
     String(d.getDate()).padStart(2,'0');
 }
 function isDone(weekNum, dayIdx) {
-  // Planned date as YYYY-MM-DD string
-  const start = localStartDate();
-  const plannedDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[dayIdx]);
-  const p0 = dateToStr(addDays(plannedDate, -1));
-  const p1 = dateToStr(plannedDate);
-  const p2 = dateToStr(addDays(plannedDate, 1));
-  return runs.some(r => {
-    const runStr = r.date.substring(0, 10);
-    return runStr === p0 || runStr === p1 || runStr === p2;
-  });
+  return getActualKm(weekNum, dayIdx) !== null;
 }
 function checkmark(done) {
   return done ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#22c55e;border-radius:4px;margin-left:8px;vertical-align:middle;flex-shrink:0;"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4L4 7.5L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' : '';
@@ -2097,6 +2309,7 @@ function renderAll() {
   renderHeader();
   renderDashboard();
   renderStreakTracker();
+  renderTrainingIntelligence();
   renderPlan();
   renderLog();
   renderStats();
