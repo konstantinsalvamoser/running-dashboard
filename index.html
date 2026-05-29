@@ -1651,34 +1651,47 @@ function getActualKm(weekNum, dayIdx) {
 
   if (!candidates.length) return null;
 
-  // Score each candidate: date proximity + distance similarity
-  const plannedTime = plannedDate.getTime();
-  const scored = candidates.map(r => {
-    const rDate = new Date(r.date + 'T00:00:00');
-    const dayDiff = Math.abs((rDate.getTime() - plannedTime) / 86400000);
-    const distDiff = plannedKm > 0 ? Math.abs(r.distance - plannedKm) / plannedKm : 0;
-    // Lower score = better match. Day diff weighted 2x, dist diff 1x
-    const score = dayDiff * 2 + distDiff;
-    return { run: r, score, dayDiff };
-  }).sort((a, b) => a.score - b.score);
+  // Build all 3 planned slots for this week with their target km
+  const slots = [0, 1, 2].map(di => ({
+    di,
+    date: addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[di]),
+    km: parsePlanKm(weekNum, di),
+  }));
 
-  // Only match if within 3 days AND not already claimed by a closer planned day
-  const best = scored[0];
-  if (!best || best.dayDiff > 3) return null;
+  // Score every candidate against every slot and find optimal assignment
+  // Use Hungarian-style greedy: assign best match globally, then remove from pool
+  const pool = [...candidates];
+  const assignments = {}; // di -> run
 
-  // Check if another planned day in this week has a closer claim
-  const otherDays = [0, 1, 2].filter(d => d !== dayIdx);
-  for (const od of otherDays) {
-    const otherDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[od]);
-    const otherTime = otherDate.getTime();
-    const otherDayDiff = Math.abs((new Date(best.run.date + 'T00:00:00').getTime() - otherTime) / 86400000);
-    if (otherDayDiff < best.dayDiff) {
-      // The other planned day is closer to this run — skip
-      return null;
+  // Try to assign each slot greedily by best combined score
+  const allScores = [];
+  for (const slot of slots) {
+    for (const r of pool) {
+      const rDate = new Date(r.date + 'T00:00:00');
+      const dayDiff = Math.abs((rDate.getTime() - slot.date.getTime()) / 86400000);
+      if (dayDiff > 4) continue;
+      // Dist score: 0 if no planned km, else relative difference
+      const distDiff = slot.km > 0 ? Math.abs(r.distance - slot.km) / slot.km : 0;
+      // Weight: distance match 3x more important than date proximity
+      const score = distDiff * 3 + dayDiff * 0.5;
+      allScores.push({ di: slot.di, run: r, score, dayDiff });
     }
   }
 
-  return best.run.distance;
+  // Sort by score ascending and assign greedily
+  allScores.sort((a, b) => a.score - b.score);
+  const usedRuns = new Set();
+  const usedSlots = new Set();
+  for (const s of allScores) {
+    if (!usedRuns.has(s.run.id) && !usedSlots.has(s.di)) {
+      assignments[s.di] = s.run;
+      usedRuns.add(s.run.id);
+      usedSlots.add(s.di);
+    }
+  }
+
+  const assigned = assignments[dayIdx];
+  return assigned ? assigned.distance : null;
 }
 
 // Parse planned km from PLAN for a given week/day
