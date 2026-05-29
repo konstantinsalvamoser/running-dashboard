@@ -1619,7 +1619,8 @@ if (!meta.startDate) {
   localStorage.setItem(META_KEY, JSON.stringify(meta));
 }
 
-function saveRuns() { localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); }
+function saveRuns() {
+  invalidateAssignmentCache(); localStorage.setItem(STORAGE_KEY, JSON.stringify(runs)); }
 
 // ============ HELPERS ============
 function fmtDate(d) {
@@ -1631,57 +1632,45 @@ function fmtDateLong(d) {
 // Day 1 = Monday (offset 0), Day 2 = Wednesday (offset 2), Day 3 = Saturday (offset 5)
 const DAY_OFFSETS = [0, 2, 5];
 
-// Smart matching: find best run for a planned session considering date AND distance
-function getActualKm(weekNum, dayIdx) {
-  const start = localStartDate();
-  const plannedDate = addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[dayIdx]);
-  const plannedKm = parsePlanKm(weekNum, dayIdx);
+// Cache for week assignments to avoid re-computation and conflicts
+const _weekAssignmentCache = {};
 
-  // Get all unmatched runs within the week window (Mon-Sun)
+function getWeekAssignments(weekNum) {
+  if (_weekAssignmentCache[weekNum]) return _weekAssignmentCache[weekNum];
+
+  const start = localStartDate();
   const weekStart = addDays(start, (weekNum - 1) * 7);
   const weekEnd = addDays(weekStart, 6);
   const weekStr0 = dateToStr(weekStart);
   const weekStr6 = dateToStr(weekEnd);
 
-  // Candidate runs: within the week
   const candidates = runs.filter(r => {
     const rs = r.date.substring(0, 10);
     return rs >= weekStr0 && rs <= weekStr6 && r.distance > 0;
   });
 
-  if (!candidates.length) return null;
-
-  // Build all 3 planned slots for this week with their target km
   const slots = [0, 1, 2].map(di => ({
     di,
     date: addDays(start, (weekNum - 1) * 7 + DAY_OFFSETS[di]),
     km: parsePlanKm(weekNum, di),
   }));
 
-  // Score every candidate against every slot and find optimal assignment
-  // Use Hungarian-style greedy: assign best match globally, then remove from pool
-  const pool = [...candidates];
-  const assignments = {}; // di -> run
-
-  // Try to assign each slot greedily by best combined score
   const allScores = [];
   for (const slot of slots) {
-    for (const r of pool) {
+    for (const r of candidates) {
       const rDate = new Date(r.date + 'T00:00:00');
       const dayDiff = Math.abs((rDate.getTime() - slot.date.getTime()) / 86400000);
       if (dayDiff > 4) continue;
-      // Dist score: 0 if no planned km, else relative difference
       const distDiff = slot.km > 0 ? Math.abs(r.distance - slot.km) / slot.km : 0;
-      // Weight: distance match 3x more important than date proximity
       const score = distDiff * 3 + dayDiff * 0.5;
       allScores.push({ di: slot.di, run: r, score, dayDiff });
     }
   }
 
-  // Sort by score ascending and assign greedily
   allScores.sort((a, b) => a.score - b.score);
   const usedRuns = new Set();
   const usedSlots = new Set();
+  const assignments = {};
   for (const s of allScores) {
     if (!usedRuns.has(s.run.id) && !usedSlots.has(s.di)) {
       assignments[s.di] = s.run;
@@ -1690,6 +1679,18 @@ function getActualKm(weekNum, dayIdx) {
     }
   }
 
+  _weekAssignmentCache[weekNum] = assignments;
+  return assignments;
+}
+
+// Invalidate cache when runs change
+function invalidateAssignmentCache() {
+  Object.keys(_weekAssignmentCache).forEach(k => delete _weekAssignmentCache[k]);
+}
+
+// Smart matching: find best run for a planned session considering date AND distance
+function getActualKm(weekNum, dayIdx) {
+  const assignments = getWeekAssignments(weekNum);
   const assigned = assignments[dayIdx];
   return assigned ? assigned.distance : null;
 }
@@ -1968,7 +1969,16 @@ function renderStreakTracker() {
 }
 
 function renderDashboard() {
-  const week = runsInLast(7);
+  // Current calendar week Mon-Sun
+  const now = new Date();
+  const todayDow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - todayDow);
+  thisMonday.setHours(0,0,0,0);
+  const week = runs.filter(r => {
+    const d = new Date(r.date + 'T00:00:00');
+    return d >= thisMonday && d <= now;
+  });
   document.getElementById('weekKm').textContent = totalKm(week).toFixed(1);
   document.getElementById('weekPace').textContent = fmtPace(avgPace(week));
   document.getElementById('totalKm').textContent = totalKm(runs).toFixed(1);
