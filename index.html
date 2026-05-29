@@ -1813,23 +1813,34 @@ function renderTrainingIntelligence() {
     const daysSince = Math.round((nowLocal - lastDate) / 86400000);
     const isHard = lastRun.type === 'Tempo' || lastRun.type === 'Intervals' || lastRun.type === 'Long';
 
-    // Need rest if: ran 2+ consecutive days, or yesterday was hard
-    const needsRest = consecutiveDays >= 2 || (ranYesterday && isHard) || (ranToday && ranYesterday);
-    const color = needsRest ? 'yellow' : daysSince === 0 ? 'blue' : 'green';
+    // Count runs in last 2 days (today + yesterday)
+    const runsLast2Days = recentRunDates.filter(d =>
+      d.getTime() === nowLocal.getTime() || d.getTime() === yesterday.getTime()
+    ).length;
+    const runsLast3Days = recentRunDates.filter(d =>
+      d >= dayBeforeYesterday && d <= nowLocal
+    ).length;
+
+    // Need rest if ran 2+ of last 3 days, or today + yesterday, or yesterday was hard
+    const needsRest = ranToday || runsLast2Days >= 2 || (ranYesterday && isHard) || runsLast3Days >= 3;
+    const color = needsRest ? 'yellow' : 'green';
 
     let icon, title, sub;
     if (ranToday && ranYesterday) {
       icon = '😴'; title = 'Rest day recommended';
-      sub = `${consecutiveDays} days in a row — your muscles rebuild during rest, not during runs.`;
+      sub = 'You ran yesterday and today — your muscles rebuild during rest. Take tomorrow off.';
+    } else if (ranToday && ranDayBefore) {
+      icon = '😴'; title = 'Rest day recommended';
+      sub = '2 runs in the last 3 days — give your legs a rest day before the next run.';
+    } else if (ranToday) {
+      icon = '😴'; title = 'Done for today';
+      sub = "You've already run today — rest up and recover well for tomorrow.";
     } else if (ranYesterday && isHard) {
       icon = '😴'; title = 'Recovery day';
       sub = `Yesterday was a ${lastRun.type.toLowerCase()} — give your body 48h before the next hard effort.`;
-    } else if (ranToday) {
-      icon = '✅'; title = 'Ran today';
-      sub = 'Great work! Rest or easy stretching for the remainder of the day.';
-    } else if (daysSince === 1) {
-      icon = '🟢'; title = 'Ready to run';
-      sub = 'Rested since yesterday — good to go today!';
+    } else if (ranYesterday) {
+      icon = '🟢'; title = 'Light day';
+      sub = 'You ran yesterday — if running today, keep it very easy (Zone 2 only).';
     } else if (daysSince >= 3) {
       icon = '⚡'; title = `${daysSince} days off`;
       sub = "Your legs are fresh — time to get moving!";
