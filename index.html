@@ -2542,6 +2542,40 @@ function handleOAuthCallback() {
 handleOAuthCallback();
 updateStravaWidget();
 renderAll();
+
+// Auto-sync Strava on page load (silently)
+(async function autoSync() {
+  if (!stravaTokens) return;
+  try {
+    // Refresh token if needed
+    if (stravaTokens.expires_at < Math.floor(Date.now()/1000) + 300) {
+      const ok = await refreshToken();
+      if (!ok) return;
+    }
+    // Fetch latest activities silently
+    const res = await fetch(`${WORKER_URL}/activities?access_token=${stravaTokens.access_token}&per_page=50`);
+    if (!res.ok) return;
+    const fresh = await res.json();
+    if (!Array.isArray(fresh) || !fresh.length) return;
+
+    let added = 0;
+    fresh.forEach(r => {
+      if (!runs.some(existing => existing.stravaId && String(existing.stravaId) === String(r.stravaId))) {
+        runs.unshift(r);
+        added++;
+      }
+    });
+
+    if (added > 0) {
+      invalidateAssignmentCache();
+      saveRuns();
+      renderAll();
+      showToast(`Synced ${added} new run${added > 1 ? 's' : ''} from Strava`);
+    }
+  } catch(e) {
+    // Silent fail — don't bother user if auto-sync fails
+  }
+})();
 </script>
 
 <script>
