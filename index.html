@@ -1365,6 +1365,76 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 @media (max-width: 600px) {
   .intel-cards { grid-template-columns: 1fr; gap: 8px; }
 }
+/* ── PLAN ADJUSTMENT BANNER ── */
+.adjust-banner {
+  border: 1px solid var(--silver-2);
+  border-radius: 4px;
+  padding: 16px 18px;
+  margin-bottom: 28px;
+  background: var(--paper);
+}
+.adjust-banner.adjust-reduce { border-left: 3px solid #f59e0b; }
+.adjust-banner.adjust-hold { border-left: 3px solid #22c55e; }
+.adjust-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.adjust-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.adjust-week {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.adjust-reason {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin-bottom: 14px;
+}
+.adjust-actions { display: flex; gap: 8px; }
+.adjust-accept {
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.adjust-accept:hover { opacity: 0.85; }
+.adjust-dismiss {
+  background: none;
+  color: var(--ink-soft);
+  border: 1px solid var(--silver-2);
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.adjust-dismiss:hover { background: var(--paper-2); }
+.adjusted-flag {
+  margin-top: 2px;
+  font-size: 9px;
+  color: #b45309;
+  letter-spacing: 0.04em;
+}
+.undo-link { text-decoration: underline; cursor: pointer; }
+.undo-link:hover { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -1433,6 +1503,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 
   <section class="panel" id="panel-plan">
     <div class="notice">12-week build to 21.1K. Three runs per week: one easy, one quality session, one long run. Skip a day if life happens — don't double up. Pace ranges assume your 5:30–5:50 baseline.</div>
+    <div id="adjustBanner"></div>
     <div class="plan-grid" id="planGrid"></div>
   </section>
 
@@ -1607,6 +1678,25 @@ const PLAN = [
 let runs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 let meta = JSON.parse(localStorage.getItem(META_KEY) || '{}');
 
+// ============ DYNAMIC PLAN ADJUSTMENTS (regelbasiert, mit Bestätigung) ============
+// Original PLAN stays untouched. Overrides are stored per-week in meta.planOverrides.
+// An override looks like: { total, d1, d2, d3, note, reason }
+if (!meta.planOverrides) meta.planOverrides = {};
+if (!meta.dismissedAdjustments) meta.dismissedAdjustments = {}; // weekNum -> true
+
+const PLAN_FLOOR = 0.70; // volume never drops below 70% of the original week
+
+function saveMeta() { localStorage.setItem(META_KEY, JSON.stringify(meta)); }
+
+// Returns the effective plan for a week: override if present, else original.
+function getEffectivePlan(weekNum) {
+  const original = PLAN[weekNum - 1];
+  if (!original) return original;
+  const ov = meta.planOverrides[weekNum];
+  if (!ov) return original;
+  return { ...original, ...ov, w: original.w, _adjusted: true };
+}
+
 // First-run setup: anchor week 1 to the Monday of this week
 if (!meta.startDate) {
   const today = new Date();
@@ -1695,9 +1785,9 @@ function getActualKm(weekNum, dayIdx) {
   return assigned ? assigned.distance : null;
 }
 
-// Parse planned km from PLAN for a given week/day
+// Parse planned km from PLAN for a given week/day (uses effective/adjusted plan)
 function parsePlanKm(weekNum, dayIdx) {
-  const wk = PLAN[weekNum - 1];
+  const wk = getEffectivePlan(weekNum);
   if (!wk) return 0;
   const text = [wk.d1, wk.d2, wk.d3][dayIdx] || '';
   const match = text.match(/(\d+(?:\.\d+)?)K/i);
@@ -2101,9 +2191,151 @@ function renderWeekRow(wk, current) {
   </div></div>`;
 }
 
+// ============ PLAN ADJUSTMENT RULES ENGINE ============
+// Evaluates the most recently completed week and proposes a change to the
+// current week. Three rules only — kept deliberately small so the logic
+// is fully inspectable. Returns null if no proposal (or none warranted).
+function computeAdjustmentProposal() {
+  const curWeek = weekNumber();
+  if (curWeek < 2 || curWeek > 12) return null; // need a completed week behind us
+
+  const lastWeek = curWeek - 1;
+
+  // If the user already accepted or dismissed a proposal for this week, stay quiet.
+  if (meta.planOverrides[curWeek] || meta.dismissedAdjustments[curWeek]) return null;
+
+  const original = PLAN[curWeek - 1];
+  if (!original) return null;
+
+  // --- Gather signals from the completed week ---
+  const sessionsDone = [0, 1, 2].filter(di => isDone(lastWeek, di)).length;
+
+  // RPE of matched runs last week (if logged)
+  const assignments = getWeekAssignments(lastWeek);
+  const rpes = [0, 1, 2]
+    .map(di => assignments[di])
+    .filter(Boolean)
+    .map(r => r.rpe)
+    .filter(v => typeof v === 'number');
+  const avgRpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : null;
+
+  // Volume increase signal: last week actual vs the week before
+  const lastWeekKm = parseFloat(getWeekActualKm(lastWeek) || '0');
+  const prevWeekKm = parseFloat(getWeekActualKm(lastWeek - 1) || '0');
+  const volumeJump = prevWeekKm > 0 ? (lastWeekKm - prevWeekKm) / prevWeekKm : 0;
+
+  // --- Apply rules in priority order (overload > missed > strong) ---
+  let factor = 1, reason = null, demoteQuality = false;
+
+  // Rule: Overloaded — big volume jump or high reported effort
+  if (volumeJump > 0.15 || (avgRpe !== null && avgRpe >= 8)) {
+    factor = 0.80;
+    demoteQuality = true;
+    reason = avgRpe !== null && avgRpe >= 8
+      ? `Last week felt hard (avg effort ${avgRpe.toFixed(0)}/10). Easing off 20% and turning the quality session into an easy run.`
+      : `Volume jumped ${Math.round(volumeJump * 100)}% last week. Easing off 20% to absorb the load.`;
+  }
+  // Rule: Missed — completed 1 or fewer of 3 sessions
+  else if (sessionsDone <= 1) {
+    factor = 0.85;
+    reason = `Only ${sessionsDone} of 3 runs last week. Reducing 15% this week — don't try to make up the missed volume.`;
+  }
+  // Rule: Strong — all sessions done, effort in a good range
+  else if (sessionsDone === 3 && (avgRpe === null || avgRpe <= 7)) {
+    return { type: 'hold', week: curWeek,
+      reason: 'All 3 runs done last week and effort looked controlled. Plan stays as-is — keep it rolling.' };
+  } else {
+    return null; // nothing actionable
+  }
+
+  // --- Build the adjusted week, respecting the 70% floor ---
+  const floorTotal = Math.round(original.total * PLAN_FLOOR);
+  const proposedTotal = Math.max(floorTotal, Math.round(original.total * factor));
+  const scale = proposedTotal / original.total;
+
+  const scaleWorkout = (text) => text.replace(/(\d+(?:\.\d+)?)K/i, (m, n) => {
+    const scaled = Math.max(3, Math.round(parseFloat(n) * scale));
+    return scaled + 'K';
+  });
+
+  let d2 = scaleWorkout(original.d2);
+  if (demoteQuality) {
+    const km = (d2.match(/(\d+(?:\.\d+)?)K/i) || [])[1] || '5';
+    d2 = `Easy ${km}K (quality → easy this week)`;
+  }
+
+  return {
+    type: 'reduce',
+    week: curWeek,
+    reason,
+    floored: proposedTotal === floorTotal && factor < PLAN_FLOOR,
+    override: {
+      total: proposedTotal,
+      d1: scaleWorkout(original.d1),
+      d2,
+      d3: scaleWorkout(original.d3),
+      note: 'Adjusted',
+      reason,
+    },
+  };
+}
+
+function acceptAdjustment() {
+  const p = computeAdjustmentProposal();
+  if (!p) return;
+  if (p.type === 'reduce') {
+    meta.planOverrides[p.week] = p.override;
+  }
+  // For a 'hold', we just dismiss so it doesn't keep reappearing.
+  meta.dismissedAdjustments[p.week] = true;
+  saveMeta();
+  invalidateAssignmentCache();
+  renderAll();
+}
+
+function dismissAdjustment() {
+  const cur = weekNumber();
+  meta.dismissedAdjustments[cur] = true;
+  saveMeta();
+  renderPlan();
+}
+
+function undoAdjustment(weekNum) {
+  delete meta.planOverrides[weekNum];
+  delete meta.dismissedAdjustments[weekNum];
+  saveMeta();
+  invalidateAssignmentCache();
+  renderAll();
+}
+
+function renderAdjustmentBanner() {
+  const host = document.getElementById('adjustBanner');
+  if (!host) return;
+  const p = computeAdjustmentProposal();
+  if (!p) { host.innerHTML = ''; return; }
+
+  const isHold = p.type === 'hold';
+  host.innerHTML = `
+    <div class="adjust-banner ${isHold ? 'adjust-hold' : 'adjust-reduce'}">
+      <div class="adjust-head">
+        <span class="adjust-tag">${isHold ? '✅ Plan check' : '⚙️ Plan adjustment suggested'}</span>
+        <span class="adjust-week">Week ${p.week}</span>
+      </div>
+      <div class="adjust-reason">${p.reason}</div>
+      <div class="adjust-actions">
+        <button class="adjust-accept" onclick="acceptAdjustment()">${isHold ? 'Got it' : 'Apply adjustment'}</button>
+        ${isHold ? '' : '<button class="adjust-dismiss" onclick="dismissAdjustment()">Keep original</button>'}
+      </div>
+    </div>`;
+}
+
 function renderPlan() {
   const curWeek = weekNumber();
-  document.getElementById('planGrid').innerHTML = PLAN.map(wk => `
+  renderAdjustmentBanner();
+  document.getElementById('planGrid').innerHTML = PLAN.map(orig => {
+    const wk = getEffectivePlan(orig.w);
+    const adjusted = !!meta.planOverrides[orig.w];
+    return `
     <div class="week-row ${wk.w === curWeek ? 'current' : ''}">
       <div class="week-num">Week<strong>${wk.w}</strong></div>
       <div class="day-block">
@@ -2124,10 +2356,11 @@ function renderPlan() {
       <div class="week-total">
         <span class="week-total-num">${wk.total}</span>
         <small>km planned</small>
-        ${wk.note ? `<small style="margin-top:2px;opacity:0.4;">${wk.note}</small>` : ''}
+        ${adjusted ? `<small class="adjusted-flag" title="${PLAN[orig.w-1].total} km originally planned">⚙ adjusted from ${PLAN[orig.w-1].total} · <span class="undo-link" onclick="undoAdjustment(${orig.w})">undo</span></small>` : (wk.note ? `<small style="margin-top:2px;opacity:0.4;">${wk.note}</small>` : '')}
         ${getWeekActualKm(wk.w) !== null ? `<div class="week-actual-km"><span class="week-actual-num">${getWeekActualKm(wk.w)}</span><small>km actual</small></div>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function isPR(run) {
