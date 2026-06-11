@@ -1710,12 +1710,15 @@ function getEffectivePlan(weekNum) {
   return { ...original, ...ov, w: original.w, _adjusted: true };
 }
 
-// Plan anchor: Week 1 = Monday 18 May 2026, Race Day = Sun 09 Aug 2026.
-// This is a property of the PLAN itself, hardcoded so that localStorage loss
-// (iOS Safari evicts site data aggressively) can never shift the week numbering.
-const PLAN_START_ISO = '2026-05-18T00:00:00';
-if (meta.startDate !== PLAN_START_ISO) {
-  meta.startDate = PLAN_START_ISO;
+// First-run setup: anchor week 1 to the Monday of this week
+if (!meta.startDate) {
+  const today = new Date();
+  const dow = today.getDay(); // 0=Sun, 1=Mon
+  const offset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + offset);
+  monday.setHours(0,0,0,0);
+  meta.startDate = monday.toISOString();
   localStorage.setItem(META_KEY, JSON.stringify(meta));
 }
 
