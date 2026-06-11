@@ -1964,7 +1964,7 @@ function renderTrainingIntelligence() {
       for (let di = 0; di < 3; di++) {
         const planned = addDays(localStartDate(), (wk-1)*7 + DAY_OFFSETS[di]);
         const diff = Math.abs(planned - now) / 86400000;
-        if (diff <= 1) return PLAN[wk-1];
+        if (diff <= 1) return getEffectivePlan(wk);
       }
       return null;
     })();
@@ -2023,7 +2023,15 @@ function renderTrainingIntelligence() {
       }<br>${weeksLeft} weeks to race day.</div>
     </div>`;
   } else {
-    const nextLong = PLAN[weekNum] ? PLAN[weekNum].d3 : '—';
+    // Next long run: this week's if not yet done, otherwise next week's
+    let nextLong = '—';
+    const thisWk = getEffectivePlan(weekNum);
+    if (thisWk && !isDone(weekNum, 2)) {
+      nextLong = thisWk.d3 + ' (this Sat)';
+    } else {
+      const nextWk = getEffectivePlan(weekNum + 1);
+      if (nextWk) nextLong = nextWk.d3 + ' (next week)';
+    }
     taperCard = `<div class="intel-card green">
       <div class="intel-card-icon">🏗</div>
       <div class="intel-card-title">Build phase</div>
@@ -2126,7 +2134,7 @@ function renderDashboard() {
   document.getElementById('totalRuns').textContent = runs.length;
 
   // this week plan
-  const wk = PLAN[weekNumber() - 1];
+  const wk = getEffectivePlan(weekNumber());
   document.getElementById('thisWeekPlan').innerHTML = renderWeekRow(wk, true);
 
   // recent runs
@@ -2433,7 +2441,7 @@ function renderStats() {
     const wkIdx = Math.floor(diffDays / 7);
     if (wkIdx >= 0 && wkIdx < 12) weekTotals[wkIdx] += r.distance;
   });
-  const planTotals = PLAN.map(p => p.total);
+  const planTotals = PLAN.map(p => getEffectivePlan(p.w).total);
 
   if (charts.volume) charts.volume.destroy();
   charts.volume = new Chart(document.getElementById('chartVolume'), {
