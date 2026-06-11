@@ -100,16 +100,26 @@
         const bioBtn = document.getElementById('bioBtn');
         if (enrolled === HASH && credId && bioBtn) {
           bioBtn.style.display = 'flex';
-          // Auto-trigger on load
-          setTimeout(biometricAuth, 300);
+          // Attempt immediately. iOS Safari may block WebAuthn without a user
+          // gesture (NotAllowedError) — in that case, fall back to triggering
+          // on the FIRST touch/click anywhere on the page, so any tap opens
+          // Face ID without needing to hit the button.
+          const ok = await biometricAuth(true);
+          if (!ok) {
+            const fireOnce = () => { biometricAuth(false); };
+            document.addEventListener('pointerdown', fireOnce, { once: true });
+          }
         }
       } catch(e) {}
     }
 
-    async function biometricAuth() {
+    async function biometricAuth(silent) {
       try {
         const credId = localStorage.getItem('bio_cred_id');
-        if (!credId) { document.getElementById('pwErr').textContent = 'Enter password first to enable Face ID.'; return; }
+        if (!credId) {
+          if (!silent) document.getElementById('pwErr').textContent = 'Enter password first to enable Face ID.';
+          return false;
+        }
         const challenge = crypto.getRandomValues(new Uint8Array(32));
         const cred = await navigator.credentials.get({
           publicKey: {
@@ -123,16 +133,19 @@
         if (cred) {
           sessionStorage.setItem('pw_ok', HASH);
           location.reload();
+          return true;
         }
+        return false;
       } catch(e) {
-        if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+        if (!silent && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
           document.getElementById('pwErr').textContent = 'Face ID failed. Use password.';
         }
+        return false;
       }
     }
 
     const bioBtn = document.getElementById('bioBtn');
-    if (bioBtn) bioBtn.addEventListener('click', biometricAuth);
+    if (bioBtn) bioBtn.addEventListener('click', () => biometricAuth(false));
     tryBiometric();
   }
   async function check() {
@@ -1462,7 +1475,7 @@ select.form-input { appearance: none; -webkit-appearance: none; cursor: pointer;
     <button class="tab" data-panel="plan">Training Plan</button>
     <button class="tab" data-panel="log">Run Log</button>
     <button class="tab" data-panel="stats">Stats</button>
-    <button class="tab" data-panel="coach">KI Coach</button>
+    <button class="tab" data-panel="coach">AI Coach</button>
   </nav>
 </header>
 
